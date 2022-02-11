@@ -4,21 +4,19 @@ import networkx as nx
 
 class FlexibleGrid():
     def __init__(self, pp_net, 
-                 connected_subgrid=None,
-                 flexible_nodes=None,
-                 flexible_edges=None):
+                 connected_subnet=None,
+                 splittable_nodes=None,
+                 switchable_edges=None):
         pass
         
 class Topology(nx.Graph):
-    def __init__(self, pp_net):
-        pass
+    pass
         
 
 def split_flexible_nodes(pp_net, flexible_nodes):
     
     # Add split busses in main tables with index 'a', 'b'
     pass
-        
         
 def topology_from_pp(pp_net):
     
@@ -31,7 +29,7 @@ def topology_from_pp(pp_net):
                           [{'line':idx} for idx in pp_net.line.index]))
     
     # Build the graph
-    topology = nx.Graph()
+    topology = Topology()
     topology.add_nodes_from(nodes_list)
     topology.add_edges_from(edges_list)
     
