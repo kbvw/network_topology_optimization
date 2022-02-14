@@ -10,9 +10,27 @@ class FlexibleGrid():
         pass
         
 class Topology(nx.Graph):
-    pass
+    
+    @property
+    def splittable_nodes(self):
         
-
+        return self._splittable_nodes
+    
+    @splittable_nodes.setter
+    def splittable_nodes(self, value):
+        
+        self._splittable_nodes = value
+    
+    @property
+    def switchable_edges(self):
+        
+        return self._switchable_edges
+    
+    @switchable_edges.setter
+    def switchable_edges(self, value):
+        
+        self.switchable_edges = value
+        
 def split_flexible_nodes(pp_net, flexible_nodes):
     
     # Add split busses in main tables with index 'a', 'b'
@@ -21,17 +39,27 @@ def split_flexible_nodes(pp_net, flexible_nodes):
 def topology_from_pp(pp_net):
     
     # Extract nodes from bus table
-    nodes_list = list(pp_net.bus.index)
+    bus_list = list(pp_net.bus.index)
     
     # Extract edges from line table, with line index stored as edge attribute
-    edges_list = list(zip(pp_net.line['from_bus'], 
+    line_list = list(zip(pp_net.line['from_bus'], 
                           pp_net.line['to_bus'],
                           [{'line':idx} for idx in pp_net.line.index]))
     
+    # Extract attributes from load and generator tables
+    load_list = list(zip(pp_net.load['bus'], pp_net.load.index))
+    gen_list = list(zip(pp_net.gen['bus'], pp_net.gen.index))
+    
     # Build the graph
     topology = Topology()
-    topology.add_nodes_from(nodes_list)
-    topology.add_edges_from(edges_list)
+    topology.add_nodes_from(bus_list)
+    topology.add_edges_from(line_list)
+    
+    # Add node attributes
+    for bus, load in load_list:
+        topology.nodes[bus]['load'] = load  
+    for bus, gen, in gen_list:
+        topology.nodes[bus]['gen'] = gen
     
     return topology
 
@@ -39,25 +67,34 @@ def apply_topology(pp_net, topology):
     
     # Switches lines in pandapower net object, without making a copy
     
+    # Should be applied to connected subnet only
     # Set all buses and lines to out of service
     pp_net.bus['in_service'] = False
     pp_net.line['in_service'] = False
     
-    # Extract bus index by iterating over nodes in topology
-    for idx in topology.nodes:
+    # Extract bus index and bus elements by iterating over nodes in topology
+    for bus, elements in topology.nodes.data():
         
         # Set buses from topology to in service
-        pp_net.bus['in_service'][idx] = True
+        pp_net.bus['in_service'][bus] = True
+        
+        # Set loads from topology to corresponding bus
+        if 'load' in elements:
+            pp_net.load['bus'][elements['load']] = bus
+            
+        # Set generators from topology to corresponding bus
+        if 'gen' in elements:
+            pp_net.gen['bus'][elements['gen']] = bus
     
     # Extract line index while iterating over edges in topology
-    for (from_bus, to_bus, idx) in topology.edges.data('line'):
+    for from_bus, to_bus, line in topology.edges.data('line'):
         
         # Set lines from topology to in service
-        pp_net.line['in_service'][idx] = True
+        pp_net.line['in_service'][line] = True
         
-        # Set lines from topology to in 
-        pp_net.line['from_bus'][idx] = from_bus
-        pp_net.line['to_bus'][idx] = to_bus
+        # Set lines from topology to corresponding bus
+        pp_net.line['from_bus'][line] = from_bus
+        pp_net.line['to_bus'][line] = to_bus    
         
     return pp_net
 
@@ -67,15 +104,35 @@ def check_min_degree(topology, min_degree):
 def check_k_edge_connectivity(topology, k):
     pass
 
-def bus_split(input_topology):
-            
-    output_topologies = []
+def node_split(topology_list):
     
-    return output_topologies
+    for topology in topology_list:
+        
+        # Choose splittable node and remove from list of splittable nodes
+        
+        new_topology_list = []
+        
+        # Make copies of topology for each node configuration
+        
+        # Check k-edge connectivity and delete disconnecting topologies
+                       
+        topology_list.extend(new_topology_list)
+    
+    return topology_list
 
-def line_cut(input_topology):
+def edge_switch(topology_list):
     
-    output_topologies = []
+    for topology in topology_list:
+        
+        # Choose switchable line and remove from list of splittable nodes
+        
+        new_topology_list = []
+        
+        # Make copies of topology for each line configuration 
+        
+        # Check k-edge connectivity and delete disconnecting topologies
+                       
+        topology_list.extend(new_topology_list)
     
     return output_topologies
 
