@@ -4,12 +4,45 @@ import networkx as nx
 
 class FlexibleGrid():
     def __init__(self, pp_net, 
-                 connected_subnet=None,
-                 splittable_nodes=None,
-                 switchable_edges=None):
-        pass
+                 connected_subnet='all',
+                 splittable_nodes='all',
+                 switchable_edges='all'):
         
+        # To do: subclass pandapower net?
+        
+        # Copy pandapower network
+        self.net = pp_net.deepcopy()
+        
+        # If splittable nodes passed, generate new buses accordingly
+        if splittable_nodes is not None:
+            if splittable_nodes == 'all':
+                splittable_nodes = self.net.bus.index
+            
+            # Copy buses and add letter designation to new buses
+            aux_buses = self.net.bus.loc[splittable_nodes, :].copy()
+            aux_buses['name'] += '_b'
+            
+            # Add letter designation to old buses that were copied
+            self.net.bus.loc[splittable_nodes, 'name'] += '_a'
+            
+            # Store old index of new buses to create mapping
+            old_idx = aux_buses.index.copy()
+
+            # Change index of new buses to ensure unique indices
+            aux_buses.index += (max(self.net.bus.index) + 1)
+            
+            # Create mapping from old buses to new buses
+            self.splittable_nodes = list(zip(old_idx, aux_buses.index))
+            
+            # Append new bus table to existing bus table
+            self.net.bus = self.net.bus.append(aux_buses)
+            
 class Topology(nx.Graph):
+    def __init__(self, **kwargs):
+        super().__init__(self, **kwargs)
+        
+        self._splittable_nodes = []
+        self._switchable_edges = []
     
     @property
     def splittable_nodes(self):
@@ -67,7 +100,10 @@ def apply_topology(pp_net, topology):
     
     # Switches lines in pandapower net object, without making a copy
     
-    # Should be applied to connected subnet only
+    # To do:
+    # - Should be applied to connected subnet only
+    # - Clean up chained assignment in pandas
+    
     # Set all buses and lines to out of service
     pp_net.bus['in_service'] = False
     pp_net.line['in_service'] = False
