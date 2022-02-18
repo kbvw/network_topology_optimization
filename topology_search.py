@@ -3,43 +3,70 @@ import pandapower as pp
 import networkx as nx
 
 class FlexibleGrid():
-    def __init__(self, pp_net, 
+    def __init__(self, pp_net,
                  connected_subnet='all',
                  splittable_nodes='all',
                  switchable_edges='all'):
         
         # To do: subclass pandapower net?
+        # To do: check if 'None' case does not break anything
+        # To do: ensure that flexible nodes/edges are subset of connected
+        # To do: import doubled buses into networkx object?
         
         # Copy pandapower network
-        self.net = pp_net.deepcopy()
+        self.pp_net = pp_net.deepcopy()
+        
+        # If connected_subnet passed, store node indices in list
+        if connected_subnet is not None:
+            if connected_subnet == 'all':
+                connected_subnet = self.pp_net.bus.index
+            self.connected_subnet = list(connected_subnet)
         
         # If splittable nodes passed, generate new buses accordingly
         if splittable_nodes is not None:
             if splittable_nodes == 'all':
-                splittable_nodes = self.net.bus.index
+                splittable_nodes = self.pp_net.bus.index
             
             # Copy buses and add letter designation to new buses
-            aux_buses = self.net.bus.loc[splittable_nodes, :].copy()
+            aux_buses = self.pp_net.bus.loc[splittable_nodes, :].copy()
             aux_buses['name'] += '_b'
             
             # Add letter designation to old buses that were copied
-            self.net.bus.loc[splittable_nodes, 'name'] += '_a'
+            self.pp_net.bus.loc[splittable_nodes, 'name'] += '_a'
             
-            # Store old index of new buses to create mapping
-            old_idx = aux_buses.index.copy()
+            # Keep track of original and new buses
+            self.pp_net.bus['is_aux_bus'] = False
+            self.pp_net.bus['original_bus'] = self.pp_net.bus.index
+            aux_buses['is_aux_bus'] = True
+            aux_buses['original_bus'] = aux_buses.index
 
             # Change index of new buses to ensure unique indices
-            aux_buses.index += (max(self.net.bus.index) + 1)
+            aux_buses.index += (max(self.pp_net.bus.index) + 1)
+            
+            # Set new buses to out of service
+            aux_buses['in_service'] = False
             
             # Create mapping from old buses to new buses
-            self.splittable_nodes = list(zip(old_idx, aux_buses.index))
+            self.splittable_nodes = list(zip(aux_buses['original_bus'], 
+                                             aux_buses.index))
             
             # Append new bus table to existing bus table
-            self.net.bus = self.net.bus.append(aux_buses)
+            self.pp_net.bus = self.pp_net.bus.append(aux_buses)
+            
+        # If switchable edges passed, store indices in list
+        if switchable_edges is not None:
+            if switchable_edges == 'all':
+                switchable_edges = self.pp_net.line.index
+            self.switchable_edges = list(switchable_edges)
+            
+        # Generate main topology object for pandapower network
+        self.main_topology = topology_from_pp(self.pp_net)
+        self.main_topology.splittable_nodes = self.splittable_nodes
+        self.main_topology.switchable_edges = self.switchable_edges
             
 class Topology(nx.Graph):
-    def __init__(self, **kwargs):
-        super().__init__(self, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super(Topology, self).__init__(*args, **kwargs)
         
         self._splittable_nodes = []
         self._switchable_edges = []
@@ -52,7 +79,7 @@ class Topology(nx.Graph):
     @splittable_nodes.setter
     def splittable_nodes(self, value):
         
-        self._splittable_nodes = value
+        self._splittable_nodes = value[:]
     
     @property
     def switchable_edges(self):
@@ -62,17 +89,21 @@ class Topology(nx.Graph):
     @switchable_edges.setter
     def switchable_edges(self, value):
         
-        self.switchable_edges = value
+        self._switchable_edges = value[:]
         
-def split_flexible_nodes(pp_net, flexible_nodes):
-    
-    # Add split busses in main tables with index 'a', 'b'
-    pass
+    def copy(self, *args, **kwargs):
+        T = super(Topology, self).copy(*args, **kwargs)
+        
+        # Copy splittable_nodes and switchable edges
+        T.splittable_nodes = self.splittable_nodes
+        T.switchable_edges = self.switchable_edges
+        
+        return T
         
 def topology_from_pp(pp_net):
     
     # Extract nodes from bus table
-    bus_list = list(pp_net.bus.index)
+    bus_list = list(pp_net.bus[pp_net.bus['is_aux_bus']==False].index)
     
     # Extract edges from line table, with line index stored as edge attribute
     line_list = list(zip(pp_net.line['from_bus'], 
