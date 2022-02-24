@@ -123,47 +123,44 @@ def topology_from_pp(pp_net, connected_subnet):
     return topology
 
 def apply_topology(pp_net, 
-                   connected_subnet, 
                    splittable_nodes, 
                    switchable_edges,
                    topology):
     
     # Switches lines in pandapower net object, without making a copy
     
-    # To do:
-    # - Should be applied to connected subnet only
-    # - Clean up chained assignment in pandas
-    
-    # Create masks for acting on connected subnet
-    
-    
+    # Create masks for acting on relevant nodes and edges
+    original_buses, aux_buses = zip(*splittable_nodes)
+    _, _, switchable_lines = zip(*switchable_edges)
+       
     # Set all buses and lines to out of service
-    pp_net.bus['in_service'] = False
-    pp_net.line['in_service'] = False
+    pp_net.bus.loc[original_buses, 'in_service'] = False
+    pp_net.bus.loc[aux_buses, 'in_service'] = False
+    pp_net.line.loc[switchable_lines, 'in_service'] = False
     
     # Extract bus index and bus elements by iterating over nodes in topology
     for bus, elements in topology.nodes.data():
         
         # Set buses from topology to in service
-        pp_net.bus['in_service'][bus] = True
+        pp_net.bus.loc[bus, 'in_service'] = True
         
         # Set loads from topology to corresponding bus
         if 'load' in elements:
-            pp_net.load['bus'][elements['load']] = bus
+            pp_net.load.loc[elements['load'], 'bus'] = bus
             
         # Set generators from topology to corresponding bus
         if 'gen' in elements:
-            pp_net.gen['bus'][elements['gen']] = bus
+            pp_net.gen.loc[elements['gen'], 'bus'] = bus
     
     # Extract line index while iterating over edges in topology
     for from_bus, to_bus, line in topology.edges.data('line'):
         
         # Set lines from topology to in service
-        pp_net.line['in_service'][line] = True
+        pp_net.line.loc[line, 'in_service'] = True
         
         # Set lines from topology to corresponding bus
-        pp_net.line['from_bus'][line] = from_bus
-        pp_net.line['to_bus'][line] = to_bus    
+        pp_net.line.loc[line, 'from_bus'] = from_bus
+        pp_net.line.loc[line, 'to_bus'] = to_bus
         
     return pp_net
 
