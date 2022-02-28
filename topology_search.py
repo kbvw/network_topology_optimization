@@ -51,7 +51,7 @@ class FlexibleGrid():
             aux_buses['in_service'] = False
             
             # Create mapping from old buses to new buses
-            self.splittable_nodes = list(zip(aux_buses['original_bus'], 
+            self.splittable_nodes = dict(zip(aux_buses['original_bus'], 
                                              aux_buses.index))
             
             # Append new bus table to existing bus table
@@ -62,8 +62,10 @@ class FlexibleGrid():
             if switchable_edges == 'all':
                 switchable_edges = self.pp_net.line.index
             switchable_edges = self.pp_net.line.loc[switchable_edges]
-            self.switchable_edges = list(zip(switchable_edges['from_bus'],
-                                             switchable_edges['to_bus'],
+            edge_zip = zip(switchable_edges['from_bus'],
+                           switchable_edges['to_bus'])
+            edge_set_list = [frozenset(edge) for edge in edge_zip]
+            self.switchable_edges = dict(zip(edge_set_list,
                                              switchable_edges.index))
             
         # Generate main topology object for pandapower network
@@ -74,8 +76,8 @@ class FlexibleGrid():
             
 class Topology(nx.Graph):
     def __init__(self, *args, **kwargs):
-        self.splittable_nodes = kwargs.pop('splittable_nodes', [])
-        self.switchable_edges = kwargs.pop('switchable_edges', [])
+        self.splittable_nodes = kwargs.pop('splittable_nodes', {})
+        self.switchable_edges = kwargs.pop('switchable_edges', {})
         self.number_of_removed_edges = 0
         super(Topology, self).__init__(*args, **kwargs)
         
@@ -132,8 +134,8 @@ def apply_topology(pp_net,
     # Switches lines in pandapower net object, without making a copy
     
     # Create masks for acting on relevant nodes and edges
-    original_buses, aux_buses = zip(*splittable_nodes)
-    _, _, switchable_lines = zip(*switchable_edges)
+    original_buses, aux_buses = zip(*splittable_nodes.items())
+    switchable_lines = list(switchable_edges.values())
        
     # Set all buses and lines to out of service
     pp_net.bus.loc[original_buses, 'in_service'] = False
@@ -193,7 +195,7 @@ def node_split(topology_list, k=2):
         if topology.splittable_nodes:
             
             # Remove node pair from list of splittabe nodes
-            node_pair = topology.splittable_nodes.pop()
+            node_pair = topology.splittable_nodes.popitem()
             
             # Obtain degree and neighboring edges
             deg = topology.degree[node_pair[0]]
@@ -266,7 +268,7 @@ def edge_switch(topology_list, k=2):
         if topology.switchable_edges:
             
             # Remove edge from list of switchable edges
-            edge = topology.switchable_edges.pop()[:2]
+            edge = tuple(topology.switchable_edges.popitem()[0])
             
             # Create copy of topology object and remove edge
             new_topology = topology.copy()
@@ -284,11 +286,14 @@ def edge_switch(topology_list, k=2):
 
 def apply_split(topology, combination, node_pair):
     
-    # Applies bus bar split without copying topology
+    # Applies node split without copying topology
     
     for edge in combination:
         attributes = topology.edges[edge]
         topology.remove_edge(*edge)
         new_edge = (node_pair[1], edge[1])
         topology.add_edge(*new_edge, **attributes)
+        if frozenset(edge) in topology.switchable_edges:
+            attribute = topology.switchable_edges.pop(frozenset(edge))
+            topology.switchable_edges[frozenset(new_edge)] = attribute
     
