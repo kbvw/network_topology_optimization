@@ -16,6 +16,7 @@ class FlexibleGrid():
         # - Check if 'None' case does not break anything
         # - Ensure that flexible nodes/edges are subset of connected
         # - Import doubled buses into networkx object?
+        # - Update bus geodata table for plotting
         
         # Copy pandapower network
         self.pp_net = pp_net.deepcopy()
@@ -183,7 +184,6 @@ def check_k_edge_connectivity(topology, edge, k):
 def node_split(topology_list, k=2):
     
     # To do:
-    # - Change line endpoints in switchable edges list
     # - Unnecessary check of degree?
     # - Include grid elements
     # - Check k-edge-connectedness before copying?
@@ -226,6 +226,23 @@ def node_split(topology_list, k=2):
                 
                             # If check passed, keep topology
                             new_topology_list.append(new_topology)
+                            
+                            # Create sub-splits for node element combinations
+                            if new_topology.nodes[node_pair[0]]:
+                                elements = new_topology.nodes[node_pair[0]]
+                                elements = list(elements.items())
+                                sub_comb_list = []
+                                for n in range(len(elements)):
+                                    sub_combs = list(combinations(elements, n+1))
+                                    sub_comb_list.extend(sub_combs)
+                                sub_topology_list = []
+                                for sub_comb in sub_comb_list:
+                                    sub_topology = new_topology.copy()
+                                    for element in sub_comb:
+                                        sub_topology.nodes[node_pair[0]].pop(element[0])
+                                        sub_topology.nodes[node_pair[1]][element[0]] = element[1]
+                                    sub_topology_list.append(sub_topology)
+                                new_topology_list.extend(sub_topology_list)
                     
                 # If degree is even, compute unique half splits
                 if (deg%2 == 0):
@@ -249,6 +266,23 @@ def node_split(topology_list, k=2):
                 
                             # If check passed, keep topology
                             new_topology_list.append(new_topology)
+                            
+                            # Create sub-splits for node element combinations
+                            if new_topology.nodes[node_pair[0]]:
+                                elements = new_topology.nodes[node_pair[0]]
+                                elements = list(elements.items())
+                                sub_comb_list = []
+                                for n in range(len(elements)):
+                                    sub_combs = list(combinations(elements, n+1))
+                                    sub_comb_list.extend(sub_combs)
+                                sub_topology_list = []
+                                for sub_comb in sub_comb_list:
+                                    sub_topology = new_topology.copy()
+                                    for element in sub_comb:
+                                        sub_topology.nodes[node_pair[0]].pop(element[0])
+                                        sub_topology.nodes[node_pair[1]][element[0]] = element[1]
+                                    sub_topology_list.append(sub_topology)
+                                new_topology_list.extend(sub_topology_list)
                        
     topology_list.extend(new_topology_list)
     
