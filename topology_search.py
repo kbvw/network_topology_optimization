@@ -185,7 +185,6 @@ def node_split(topology_list, k=2):
     
     # To do:
     # - Unnecessary check of degree?
-    # - Include grid elements
     # - Check k-edge-connectedness before copying?
     
     new_topology_list = []
@@ -227,22 +226,11 @@ def node_split(topology_list, k=2):
                             # If check passed, keep topology
                             new_topology_list.append(new_topology)
                             
-                            # Create sub-splits for node element combinations
+                            # Create subsplits for node element combinations
                             if new_topology.nodes[node_pair[0]]:
-                                elements = new_topology.nodes[node_pair[0]]
-                                elements = list(elements.items())
-                                sub_comb_list = []
-                                for n in range(len(elements)):
-                                    sub_combs = list(combinations(elements, n+1))
-                                    sub_comb_list.extend(sub_combs)
-                                sub_topology_list = []
-                                for sub_comb in sub_comb_list:
-                                    sub_topology = new_topology.copy()
-                                    for element in sub_comb:
-                                        sub_topology.nodes[node_pair[0]].pop(element[0])
-                                        sub_topology.nodes[node_pair[1]][element[0]] = element[1]
-                                    sub_topology_list.append(sub_topology)
-                                new_topology_list.extend(sub_topology_list)
+                                sub_list = generate_subsplits(new_topology,
+                                                              node_pair)
+                                new_topology_list.extend(sub_list)
                     
                 # If degree is even, compute unique half splits
                 if (deg%2 == 0):
@@ -267,22 +255,11 @@ def node_split(topology_list, k=2):
                             # If check passed, keep topology
                             new_topology_list.append(new_topology)
                             
-                            # Create sub-splits for node element combinations
+                            # Create subsplits for node element combinations
                             if new_topology.nodes[node_pair[0]]:
-                                elements = new_topology.nodes[node_pair[0]]
-                                elements = list(elements.items())
-                                sub_comb_list = []
-                                for n in range(len(elements)):
-                                    sub_combs = list(combinations(elements, n+1))
-                                    sub_comb_list.extend(sub_combs)
-                                sub_topology_list = []
-                                for sub_comb in sub_comb_list:
-                                    sub_topology = new_topology.copy()
-                                    for element in sub_comb:
-                                        sub_topology.nodes[node_pair[0]].pop(element[0])
-                                        sub_topology.nodes[node_pair[1]][element[0]] = element[1]
-                                    sub_topology_list.append(sub_topology)
-                                new_topology_list.extend(sub_topology_list)
+                                sub_list = generate_subsplits(new_topology,
+                                                              node_pair)
+                                new_topology_list.extend(sub_list)
                        
     topology_list.extend(new_topology_list)
     
@@ -321,13 +298,48 @@ def edge_switch(topology_list, k=2):
 def apply_split(topology, combination, node_pair):
     
     # Applies node split without copying topology
-    
+
+    # Switch every edge in combination to alternative node
     for edge in combination:
+        
+        # Keep track of old edge attributes
         attributes = topology.edges[edge]
+        
+        # Remove old edge
         topology.remove_edge(*edge)
+        
+        # Add new edge
         new_edge = (node_pair[1], edge[1])
         topology.add_edge(*new_edge, **attributes)
+        
+        # Change edge in dictionary of switchable edges
         if frozenset(edge) in topology.switchable_edges:
             attribute = topology.switchable_edges.pop(frozenset(edge))
             topology.switchable_edges[frozenset(new_edge)] = attribute
+            
+def generate_subsplits(topology, node_pair):
     
+    # Generates subsplits without affecting input topology object
+    
+    # Extract node elements
+    elements = topology.nodes[node_pair[0]]
+    elements = list(elements.items())
+    
+    sub_comb_list = []
+    
+    # Generate combinations of distributing elements over node pair
+    for n in range(len(elements)):
+        sub_combs = list(combinations(elements, n+1))
+        sub_comb_list.extend(sub_combs)
+        
+    sub_topology_list = []
+    
+    # Generate sub topology for each combination
+    for sub_comb in sub_comb_list:
+        sub_topology = topology.copy()
+        for element in sub_comb:
+            sub_topology.nodes[node_pair[0]].pop(element[0])
+            sub_topology.nodes[node_pair[1]][element[0]] = element[1]
+        sub_topology_list.append(sub_topology)
+        
+    return sub_topology_list
