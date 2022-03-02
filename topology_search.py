@@ -180,8 +180,79 @@ def check_k_edge_connectivity(topology, edge, k):
         return True
     else:
         return False
+    
+def topology_generator(full_topology_list, k=2,
+                       node_split=True, edge_switch=True):
+    
+    # Copy full topology objects to leave the original unchanged
+    input_topology_list = [t.copy() for t in full_topology_list]
+    
+    # Node split recursion for every input topology
+    if node_split:
+        output_topology_list = []
+        for topology in input_topology_list:
+            output_topology_list.extend(node_split_recursor(topology, k))
+            
+        # Set resulting topologies as new input toplogies
+        input_topology_list = output_topology_list[:]
+       
+    # Edge switch recursion for every input topology
+    if edge_switch:
+        output_topology_list = []
+        for topology in input_topology_list:
+            output_topology_list.extend(edge_switch_recursor(topology, k))
+        
+    return output_topology_list
 
-def node_split(topology_list, k=2):
+def node_split_recursor(input_topology, k=2):
+    
+    # Check if splittable nodes remain
+    if input_topology.splittable_nodes:
+            
+        # Remove node pair from dictionary of splittable nodes
+        node_pair = input_topology.splittable_nodes.popitem()
+        
+        # Check degree
+        
+        # Execute node split
+        new_topology_list = node_split(input_topology, node_pair, k)
+        
+        # Recursion for new topologies including input topology
+        recursion_list = [input_topology, *new_topology_list]
+        output_topology_list = []
+        for topology in recursion_list:
+            output_topology_list.extend(node_split_recursor(topology, k))
+            
+        return output_topology_list
+             
+    else:
+        return [input_topology]
+
+def edge_switch_recursor(input_topology, k=2):
+    
+    # Check if switchable edges remain
+    if input_topology.switchable_edges:
+        
+        # Remove edge from dictionary of switchable edges
+        edge = tuple(input_topology.switchable_edges.popitem()[0])
+        
+        # Check degree
+        
+        # Execute edge switch
+        new_topology_list = edge_switch(input_topology, edge, k)
+        
+        # Recursion for new topologies including input topology
+        recursion_list = [input_topology, *new_topology_list]
+        output_topology_list = []
+        for topology in recursion_list:
+            output_topology_list.extend(edge_switch_recursor(topology, k))
+            
+        return output_topology_list
+             
+    else:
+        return [input_topology]
+
+def node_split(topology, node_pair, k=2):
     
     # To do:
     # - Unnecessary check of degree?
@@ -189,111 +260,92 @@ def node_split(topology_list, k=2):
     
     new_topology_list = []
     
-    for topology in topology_list:
+    # Obtain degree and neighboring edges
+    deg = topology.degree[node_pair[0]]
+    neighbors = list(topology.adj[node_pair[0]])
+    edges = [(node_pair[0], n) for n in neighbors]
+    
+    # Check if degree is high enough for bus split
+    if deg >= 2*k:
         
-        if topology.splittable_nodes:
-            
-            # Remove node pair from list of splittabe nodes
-            node_pair = topology.splittable_nodes.popitem()
-            
-            # Obtain degree and neighboring edges
-            deg = topology.degree[node_pair[0]]
-            neighbors = list(topology.adj[node_pair[0]])
-            edges = [(node_pair[0], n) for n in neighbors]
-            
-            # Check if degree is high enough for bus split
-            if deg >= 2*k:
-                
-                max_uneven_split = math.ceil(deg/2)
-                splits = list(range(k, max_uneven_split))
-                
-                # Iterate over total number of edges to be moved to other node
-                for split in splits:
-                    new_topology_list = []
-    
-                    # Obtain all combinations for this number of edges
-                    combs = combinations(edges, split)
-                        
-                    # Create new topology for each combination
-                    for comb in combs:
-                        new_topology = topology.copy()
-                        apply_split(new_topology, comb, node_pair)
-                        
-                        # Check k-edge connectivity
-                        if check_k_edge_connectivity(new_topology, 
-                                                     node_pair, k):
-                
-                            # If check passed, keep topology
-                            new_topology_list.append(new_topology)
-                            
-                            # Create subsplits for node element combinations
-                            if new_topology.nodes[node_pair[0]]:
-                                sub_list = generate_subsplits(new_topology,
-                                                              node_pair)
-                                new_topology_list.extend(sub_list)
-                    
-                # If degree is even, compute unique half splits
-                if (deg%2 == 0):
-                    half_split = int(deg/2) - 1
-                    
-                    # Take arbitrary first edge
-                    first_edge = edges.pop()
-                    combs = combinations(edges, half_split)
-                    
-                    # Create new topology for each combination
-                    for comb in combs:
-                        new_topology = topology.copy()
-                        
-                        # Include first edge
-                        full_comb = (first_edge, *comb)
-                        apply_split(new_topology, full_comb, node_pair)
-                        
-                        # Check k-edge connectivity
-                        if check_k_edge_connectivity(new_topology, 
-                                                     node_pair, k):
-                
-                            # If check passed, keep topology
-                            new_topology_list.append(new_topology)
-                            
-                            # Create subsplits for node element combinations
-                            if new_topology.nodes[node_pair[0]]:
-                                sub_list = generate_subsplits(new_topology,
-                                                              node_pair)
-                                new_topology_list.extend(sub_list)
-                       
-    topology_list.extend(new_topology_list)
-    
-    return topology_list
+        max_uneven_split = math.ceil(deg/2)
+        splits = list(range(k, max_uneven_split))
+        
+        # Iterate over total number of edges to be moved to other node
+        for split in splits:
+            new_topology_list = []
 
-def edge_switch(topology_list, k=2):
+            # Obtain all combinations for this number of edges
+            combs = combinations(edges, split)
+                
+            # Create new topology for each combination
+            for comb in combs:
+                new_topology = topology.copy()
+                apply_split(new_topology, comb, node_pair)
+                
+                # Check k-edge connectivity
+                if check_k_edge_connectivity(new_topology, 
+                                             node_pair, k):
+        
+                    # If check passed, keep topology
+                    new_topology_list.append(new_topology)
+                    
+                    # Create subsplits for node element combinations
+                    if new_topology.nodes[node_pair[0]]:
+                        sub_list = generate_subsplits(new_topology,
+                                                      node_pair)
+                        new_topology_list.extend(sub_list)
+            
+        # If degree is even, compute unique half splits
+        if (deg%2 == 0):
+            half_split = int(deg/2) - 1
+            
+            # Take arbitrary first edge
+            first_edge = edges.pop()
+            combs = combinations(edges, half_split)
+            
+            # Create new topology for each combination
+            for comb in combs:
+                new_topology = topology.copy()
+                
+                # Include first edge
+                full_comb = (first_edge, *comb)
+                apply_split(new_topology, full_comb, node_pair)
+                
+                # Check k-edge connectivity
+                if check_k_edge_connectivity(new_topology, 
+                                             node_pair, k):
+        
+                    # If check passed, keep topology
+                    new_topology_list.append(new_topology)
+                    
+                    # Create subsplits for node element combinations
+                    if new_topology.nodes[node_pair[0]]:
+                        sub_list = generate_subsplits(new_topology,
+                                                      node_pair)
+                        new_topology_list.extend(sub_list)
+                       
+    return new_topology_list
+
+def edge_switch(topology, edge, k=2):
     
     # To do:
     # - Max depth?
     # - Check k-edge-connectedness before copying?
     
     new_topology_list = []
-    
-    for topology in topology_list:
         
-        # Check if edges can be removed
-        if topology.switchable_edges:
-            
-            # Remove edge from list of switchable edges
-            edge = tuple(topology.switchable_edges.popitem()[0])
-            
-            # Create copy of topology object and remove edge
-            new_topology = topology.copy()
-            new_topology.remove_edge(*edge)
-            
-            # Check k-edge connectivity
-            if check_k_edge_connectivity(new_topology, edge, k):
-                
-                # If check passed, keep topology
-                new_topology_list.append(new_topology)
+    # Create copy of topology object and remove edge
+    new_topology = topology.copy()
+    new_topology.remove_edge(*edge)
     
-    topology_list.extend(new_topology_list)
+    # Check k-edge connectivity
+    if check_k_edge_connectivity(new_topology, edge, k):
+        
+        # If check passed, keep topology
+        new_topology_list.append(new_topology)
     
-    return topology_list
+    return new_topology_list
 
 def apply_split(topology, combination, node_pair):
     
