@@ -20,32 +20,35 @@ class FlexibleNet():
         # Copy pandapower network
         self.pp_net = pp_net.deepcopy()
         
+        # Short notation
+        net = self.pp_net
+        
         # If connected_subnet passed, store node indices in list
         if connected_subnet is not None:
             if connected_subnet == 'all':
-                connected_subnet = self.pp_net.bus.index
+                connected_subnet = net.bus.index
             self.connected_subnet = list(connected_subnet)
         
         # If splittable nodes passed, generate new buses accordingly
         if splittable_nodes is not None:
             if splittable_nodes == 'all':
-                splittable_nodes = self.pp_net.bus.index
+                splittable_nodes = net.bus.index
             
             # Copy buses and add letter designation to new buses
-            aux_buses = self.pp_net.bus.loc[splittable_nodes, :].copy()
+            aux_buses = net.bus.loc[splittable_nodes, :].copy()
             aux_buses['name'] += '_b'
             
             # Add letter designation to old buses that were copied
-            self.pp_net.bus.loc[splittable_nodes, 'name'] += '_a'
+            net.bus.loc[splittable_nodes, 'name'] += '_a'
             
             # Keep track of original and new buses
-            self.pp_net.bus['is_aux_bus'] = False
-            self.pp_net.bus['original_bus'] = self.pp_net.bus.index
+            net.bus['is_aux_bus'] = False
+            net.bus['original_bus'] = net.bus.index
             aux_buses['is_aux_bus'] = True
             aux_buses['original_bus'] = aux_buses.index
 
             # Change index of new buses to ensure unique indices
-            aux_buses.index += (max(self.pp_net.bus.index) + 1)
+            aux_buses.index += (max(net.bus.index) + 1)
             
             # Set new buses to out of service
             aux_buses['in_service'] = False
@@ -55,13 +58,21 @@ class FlexibleNet():
                                              aux_buses.index))
             
             # Append new bus table to existing bus table
-            self.pp_net.bus = self.pp_net.bus.append(aux_buses)
+            net.bus = net.bus.append(aux_buses)
+            
+            # Add coordinates for the new bus
+            if hasattr(net, 'bus_geodata'):
+                og_index = aux_buses['original_bus']
+                aux_buses_geodata = net.bus_geodata.loc[og_index]
+                aux_buses_geodata.index = aux_buses.index
+                net.bus_geodata = net.bus_geodata.append(aux_buses_geodata)
+                
             
         # If switchable edges passed, store tuples with line endpoints
         if switchable_edges is not None:
             if switchable_edges == 'all':
-                switchable_edges = self.pp_net.line.index
-            switchable_edges = self.pp_net.line.loc[switchable_edges]
+                switchable_edges = net.line.index
+            switchable_edges = net.line.loc[switchable_edges]
             edge_zip = zip(switchable_edges['from_bus'],
                            switchable_edges['to_bus'])
             edge_set_list = [frozenset(edge) for edge in edge_zip]
@@ -69,8 +80,7 @@ class FlexibleNet():
                                              switchable_edges.index))
             
         # Generate main topology object for pandapower network
-        self.main_topology = topology_from_pp(self.pp_net, 
-                                              self.connected_subnet)
+        self.main_topology = topology_from_pp(net, self.connected_subnet)
         self.main_topology.splittable_nodes = self.splittable_nodes
         self.main_topology.switchable_edges = self.switchable_edges
         
