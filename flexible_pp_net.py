@@ -2,7 +2,7 @@ import pandas as pd
 import pandapower as pp
 
 import topology_search
-from topology_search import Topology
+from topology_search import Topology, topology_generator
 
 class FlexibleNet():
     def __init__(self, pp_net,
@@ -73,6 +73,24 @@ class FlexibleNet():
                                               self.connected_subnet)
         self.main_topology.splittable_nodes = self.splittable_nodes
         self.main_topology.switchable_edges = self.switchable_edges
+        
+    def topology_search(self, k=2, node_split=True, edge_switch=True):
+        
+        self.topology_list = topology_generator([self.main_topology], k,
+                                                node_split, edge_switch)
+        
+        return len(self.topology_list)
+        
+    def run_all_pf(self):
+        
+        self.res_line = {}
+        
+        for topology in self.topology_list:
+            apply_topology(self.pp_net, 
+                           self.splittable_nodes, self.switchable_edges, 
+                           topology)
+            pp.runpp(self.pp_net)
+            self.res_line[topology] = self.pp_net.res_line
         
 def topology_from_pp(pp_net, connected_subnet):
     
