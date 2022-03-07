@@ -101,6 +101,18 @@ class FlexibleNet():
                            topology)
             pp.runpp(self.pp_net)
             self.res_line[topology] = self.pp_net.res_line
+            
+    def plot_pf_res(self, topology='main'):
+        
+        if topology == 'main':
+            topology = self.main_topology
+        
+        apply_topology(self.pp_net, 
+                       self.splittable_nodes, self.switchable_edges, 
+                       topology)
+        pp.runpp(self.pp_net)
+        
+        return pp.plotting.plotly.pf_res_plotly(self.pp_net)
         
 def topology_from_pp(pp_net, connected_subnet):
     
