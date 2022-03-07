@@ -83,22 +83,30 @@ class FlexibleNet():
         self.main_topology = topology_from_pp(net, self.connected_subnet)
         self.main_topology.splittable_nodes = self.splittable_nodes
         self.main_topology.switchable_edges = self.switchable_edges
-        
+              
     def topology_search(self, k=2, node_split=True, edge_switch=True):
         
         self.topology_list = topology_generator([self.main_topology], k,
                                                 node_split, edge_switch)
         
         return len(self.topology_list)
+    
+    def reset_topology(self):
+        apply_topology(self.pp_net, 
+                       self.splittable_nodes, self.switchable_edges, 
+                       self.main_topology)
+        
+    def apply_topology(self, topology):
+        apply_topology(self.pp_net, 
+                       self.splittable_nodes, self.switchable_edges, 
+                       topology)
         
     def run_all_pf(self):
         
         self.res_line = {}
         
         for topology in self.topology_list:
-            apply_topology(self.pp_net, 
-                           self.splittable_nodes, self.switchable_edges, 
-                           topology)
+            self.apply_topology(topology)
             pp.runpp(self.pp_net)
             self.res_line[topology] = self.pp_net.res_line
             
