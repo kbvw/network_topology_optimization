@@ -58,16 +58,16 @@ class FlexibleNet():
                                              aux_buses.index))
             
             # Append new bus table to existing bus table
-            net.bus = net.bus.append(aux_buses)
+            net.bus = pd.concat([net.bus, aux_buses])
             
             # Add coordinates for the new bus
             if hasattr(net, 'bus_geodata'):
                 og_index = aux_buses['original_bus']
                 aux_buses_geodata = net.bus_geodata.loc[og_index]
                 aux_buses_geodata.index = aux_buses.index
-                net.bus_geodata = net.bus_geodata.append(aux_buses_geodata)
-                
-            
+                net.bus_geodata = pd.concat([net.bus_geodata, 
+                                             aux_buses_geodata])
+                  
         # If switchable edges passed, store tuples with line endpoints
         if switchable_edges is not None:
             if switchable_edges == 'all':
