@@ -120,7 +120,7 @@ class FlexibleNet():
                        topology)
         pp.runpp(self.pp_net)
         
-        return plot_function(self.pp_net)
+        plot_function(self.pp_net)
         
 def topology_from_pp(pp_net, connected_subnet):
     
