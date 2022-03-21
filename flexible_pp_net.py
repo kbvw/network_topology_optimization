@@ -1,7 +1,7 @@
 import pandas as pd
 import pandapower as pp
 
-from topology_search import Topology, topology_generator
+from .topology_search import Topology, topology_generator
 
 class FlexibleNet():
     def __init__(self, pp_net,
