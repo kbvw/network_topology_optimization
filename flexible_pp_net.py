@@ -3,11 +3,12 @@ import pandapower as pp
 
 from .topology_search import Topology, topology_generator
 
-class FlexibleNet():
-    def __init__(self, pp_net,
-                 connected_subnet='all',
-                 splittable_nodes='all',
-                 switchable_edges='all'):
+class FlexibleNet(pp.auxiliary.pandapowerNet):
+    @classmethod
+    def from_pp_net(cls, pp_net,
+                    connected_subnet='all',
+                    splittable_nodes='all',
+                    switchable_edges='all'):
         
         # To do: 
         # - Subclass pandapower net?
@@ -16,17 +17,15 @@ class FlexibleNet():
         # - Import doubled buses into networkx object?
         # - Update bus geodata table for plotting
         
-        # Copy pandapower network
-        self.pp_net = pp_net.deepcopy()
-        
-        # Short notation
-        net = self.pp_net
+        # Construct instance as copy of Pandapower network
+        net = pp_net.deepcopy()
+        net._setattr('__class__', cls)
         
         # If connected_subnet passed, store node indices in list
         if connected_subnet is not None:
             if connected_subnet == 'all':
                 connected_subnet = net.bus.index
-            self.connected_subnet = list(connected_subnet)
+            net.connected_subnet = list(connected_subnet)
         
         # If splittable nodes passed, generate new buses accordingly
         if splittable_nodes is not None:
@@ -53,8 +52,8 @@ class FlexibleNet():
             aux_buses['in_service'] = False
             
             # Create mapping from old buses to new buses
-            self.splittable_nodes = dict(zip(aux_buses['original_bus'], 
-                                             aux_buses.index))
+            net.splittable_nodes = dict(zip(aux_buses['original_bus'], 
+                                            aux_buses.index))
             
             # Append new bus table to existing bus table
             net.bus = pd.concat([net.bus, aux_buses])
@@ -75,13 +74,15 @@ class FlexibleNet():
             edge_zip = zip(switchable_edges['from_bus'],
                            switchable_edges['to_bus'])
             edge_set_list = [frozenset(edge) for edge in edge_zip]
-            self.switchable_edges = dict(zip(edge_set_list,
-                                             switchable_edges.index))
+            net.switchable_edges = dict(zip(edge_set_list,
+                                            switchable_edges.index))
             
         # Generate main topology object for pandapower network
-        self.main_topology = topology_from_pp(net, self.connected_subnet)
-        self.main_topology.splittable_nodes = self.splittable_nodes
-        self.main_topology.switchable_edges = self.switchable_edges
+        net.main_topology = topology_from_pp(net, net.connected_subnet)
+        net.main_topology.splittable_nodes = net.splittable_nodes
+        net.main_topology.switchable_edges = net.switchable_edges
+        
+        return net
               
     def topology_search(self, k=2, node_split=True, edge_switch=True):
         
@@ -91,35 +92,35 @@ class FlexibleNet():
         return len(self.topology_list)
     
     def reset_topology(self):
-        apply_topology(self.pp_net, 
+        apply_topology(self, 
                        self.splittable_nodes, self.switchable_edges, 
                        self.main_topology)
         
     def apply_topology(self, topology):
-        apply_topology(self.pp_net, 
+        apply_topology(self, 
                        self.splittable_nodes, self.switchable_edges, 
                        topology)
         
     def run_all_pf(self):
         
-        self.res_line = {}
+        self.all_res_line = {}
         
         for topology in self.topology_list:
             self.apply_topology(topology)
-            pp.runpp(self.pp_net)
-            self.res_line[topology] = self.pp_net.res_line
+            pp.runpp(self)
+            self.all_res_line[topology] = self.res_line
             
     def plot_pf_res(self, topology, plot_function):
         
         if topology == 'main':
             topology = self.main_topology
         
-        apply_topology(self.pp_net, 
+        apply_topology(self, 
                        self.splittable_nodes, self.switchable_edges, 
                        topology)
-        pp.runpp(self.pp_net)
+        pp.runpp(self)
         
-        plot_function(self.pp_net)
+        plot_function(self)
         
 def topology_from_pp(pp_net, connected_subnet):
     
