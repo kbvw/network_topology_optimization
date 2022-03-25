@@ -110,17 +110,15 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
             pp.runpp(self)
             self.all_res_line[topology] = self.res_line
             
-    def plot_pf_res(self, topology, plot_function):
+    def _select_in_service(self, el):
         
-        if topology == 'main':
-            topology = self.main_topology
+        # Obtain grid element table and corresponding result table
+        el_df = getattr(self, el)
+        res_df = getattr(self, 'res_' + el)
         
-        apply_topology(self, 
-                       self.splittable_nodes, self.switchable_edges, 
-                       topology)
-        pp.runpp(self)
-        
-        plot_function(self)
+        # Keep only in-service components
+        setattr(self, 'res_' + el, res_df[el_df['in_service'] == True])
+        setattr(self, el, el_df[el_df['in_service'] == True])
         
 def topology_from_pp(pp_net, connected_subnet):
     
@@ -197,3 +195,20 @@ def apply_topology(pp_net,
         pp_net.line.loc[line, 'to_bus'] = to_bus
         
     return pp_net
+
+def plot_pf_res_topology(net, topology='main'):
+    
+    if topology == 'main':
+        topology = net.main_topology
+    
+    apply_topology(net, net.splittable_nodes, net.switchable_edges, topology)
+    pp.runpp(net)
+    
+    # Temporary copy of network object, adjusted for plotting
+    net_cp = net.deepcopy()
+    
+    # Select only components in service
+    for element in ('bus', 'line', 'trafo', 'ext_grid'):
+        net_cp._select_in_service(element)
+        
+    return pp.plotting.pf_res_plotly(net_cp) 
