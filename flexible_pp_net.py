@@ -10,9 +10,9 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
     # Circumvent Pandapower attribute restrictions when changing class
     def __setattr__(self, key, value):
         if key == '__class__':
-            super(pp.auxiliary.pandapowerNet, self)._setattr(key, value)
+            pp.auxiliary.pandapowerNet._setattr(self, key, value)
         else:
-            super(pp.auxiliary.pandapowerNet, self).__setattr__(key, value)
+            pp.auxiliary.pandapowerNet.__setattr__(self, key, value)
     
     # Copy constructor method
     @classmethod
@@ -25,7 +25,7 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
         # - Check if 'None' case does not break anything
         # - Ensure that flexible nodes/edges are subset of connected
         # - Import doubled buses into networkx object?
-        # - Update bus geodata table for plotting
+        # - Serialization of frozensets
         
         # Construct instance as copy of Pandapower network
         net = pp_net.deepcopy()
