@@ -3,7 +3,18 @@ import pandapower as pp
 
 from .topology_search import Topology, topology_generator
 
+__all__ = ['FlexibleNet']
+
 class FlexibleNet(pp.auxiliary.pandapowerNet):
+    
+    # Circumvent Pandapower attribute restrictions when changing class
+    def __setattr__(self, key, value):
+        if key == '__class__':
+            super(pp.auxiliary.pandapowerNet, self)._setattr(key, value)
+        else:
+            super(pp.auxiliary.pandapowerNet, self).__setattr__(key, value)
+    
+    # Copy constructor method
     @classmethod
     def from_pp_net(cls, pp_net,
                     connected_subnet='all',
@@ -11,7 +22,6 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
                     switchable_edges='all'):
         
         # To do: 
-        # - Subclass pandapower net?
         # - Check if 'None' case does not break anything
         # - Ensure that flexible nodes/edges are subset of connected
         # - Import doubled buses into networkx object?
@@ -83,6 +93,10 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
         net.main_topology.switchable_edges = net.switchable_edges
         
         return net
+    
+    def displace_aux_buses(self, x, y):
+        self.bus_geodata.loc[self.bus['is_aux_bus']==True, 'x'] += x
+        self.bus_geodata.loc[self.bus['is_aux_bus']==True, 'y'] += y
               
     def topology_search(self, k=2, node_split=True, edge_switch=True):
         
@@ -110,15 +124,31 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
             pp.runpp(self)
             self.all_res_line[topology] = self.res_line
             
-    def _select_in_service(self, el):
+    def plot_pf_res(self, topology='main'):
+        if topology == 'main':
+            topology = self.main_topology
         
-        # Obtain grid element table and corresponding result table
-        el_df = getattr(self, el)
-        res_df = getattr(self, 'res_' + el)
+        # Temporary copy of network object, adjusted for plotting
+        net = self.deepcopy()
         
-        # Keep only in-service components
-        setattr(self, 'res_' + el, res_df[el_df['in_service'] == True])
-        setattr(self, el, el_df[el_df['in_service'] == True])
+        net.apply_topology(topology)
+        pp.runpp(net)
+        
+        # Select only components in service
+        for element in ('bus', 'line', 'trafo', 'ext_grid'):
+            _select_in_service(net, element)
+            
+        return pp.plotting.pf_res_plotly(net) 
+            
+def _select_in_service(net, element):
+    
+    # Obtain grid element table and corresponding result table
+    element_df = getattr(net, element)
+    res_df = getattr(net, 'res_' + element)
+    
+    # Keep only in-service components
+    setattr(net, 'res_' + element, res_df[element_df['in_service'] == True])
+    setattr(net, element, element_df[element_df['in_service'] == True])
         
 def topology_from_pp(pp_net, connected_subnet):
     
@@ -195,20 +225,3 @@ def apply_topology(pp_net,
         pp_net.line.loc[line, 'to_bus'] = to_bus
         
     return pp_net
-
-def plot_pf_res_topology(net, topology='main'):
-    
-    if topology == 'main':
-        topology = net.main_topology
-    
-    apply_topology(net, net.splittable_nodes, net.switchable_edges, topology)
-    pp.runpp(net)
-    
-    # Temporary copy of network object, adjusted for plotting
-    net_cp = net.deepcopy()
-    
-    # Select only components in service
-    for element in ('bus', 'line', 'trafo', 'ext_grid'):
-        net_cp._select_in_service(element)
-        
-    return pp.plotting.pf_res_plotly(net_cp) 
