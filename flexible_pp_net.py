@@ -8,6 +8,9 @@ __all__ = ['FlexibleNet']
 
 class FlexibleNet(pp.auxiliary.pandapowerNet):
     
+    # To do:
+    # - Serialization (frozensets, graph objects)
+    
     # Circumvent Pandapower attribute restrictions when changing class
     def __setattr__(self, key, value):
         if key == '__class__':
@@ -25,8 +28,6 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
         # To do: 
         # - Check if 'None' case does not break anything
         # - Ensure that flexible nodes/edges are subset of connected
-        # - Import doubled buses into networkx object?
-        # - Serialization of frozensets
         
         # Construct instance as copy of Pandapower network
         net = pp_net.deepcopy()
@@ -101,10 +102,12 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
               
     def topology_search(self, k=2, node_split=True, edge_switch=True):
         
-        self.topology_list = topology_generator([self.main_topology], k,
-                                                node_split, edge_switch)
+        topo = topology_generator([self.main_topology], k,
+                                           node_split, edge_switch)
         
-        return len(self.topology_list)
+        self.topo = pd.Series(topo, dtype=object, name='topo_obj')
+        
+        return len(self.topo)
     
     def reset_topology(self):
         apply_topology(self, 
@@ -116,14 +119,26 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
                        self.splittable_nodes, self.switchable_edges, 
                        topology)
         
-    def run_all_pf(self):
+    def run_all_pf(self, metrics):
+        """Run load flow for each topology and store specified metrics.
         
-        self.all_res_line = {}
+        Metrics are passed as an iterable of tuples (name, function),
+        where 'name' is the name of the metric as a string and
+        'function' is a Python function taking a Pandapower network
+        object as its only argument and returning a scalar value.
+        """
         
-        for topology in self.topology_list:
+        metric_names, _ = zip(*metrics)
+        self.res_topo = pd.DataFrame(index=self.topo.index, 
+                                     columns=metric_names,
+                                     dtype=float)
+        
+        for n, topology in self.topo.iteritems():
             self.apply_topology(topology)
             pp.runpp(self)
-            self.all_res_line[topology] = self.res_line
+            for name, metric in metrics:
+                result = metric(self)
+                self.res_topo.loc[n, name] = result
             
     def plot_pf_res(self, topology='main'):
         if topology == 'main':
