@@ -139,6 +139,8 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
             for name, metric in metrics:
                 result = metric(self)
                 self.res_topo.loc[n, name] = result
+                
+        self.apply_topology(self.main_topology)
             
     def plot_pf_res(self, topology='main'):
         if topology == 'main':
