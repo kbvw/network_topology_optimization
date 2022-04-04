@@ -122,25 +122,29 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
     def run_all_pf(self, metrics):
         """Run load flow for each topology and store specified metrics.
         
-        Metrics are passed as an iterable of tuples (name, function),
-        where 'name' is the name of the metric as a string and
-        'function' is a Python function taking a Pandapower network
-        object as its only argument and returning a scalar value.
+        Metrics are passed as an iterable of (named) functions, each
+        of which maps a Pandapower network object to a scalar.
+        The function name will be used for logging the metrics in 
+        the results table, accessible through the 'res_topo' attribute.
         """
         
-        metric_names, _ = zip(*metrics)
+        # Initialize dataframe
+        metric_names = (metric.__name__ for metric in metrics)
         self.res_topo = pd.DataFrame(index=self.topo.index, 
                                      columns=metric_names,
                                      dtype=float)
         
+        # Log metrics for every topology
         for n, topology in self.topo.iteritems():
             self.apply_topology(topology)
             pp.runpp(self)
-            for name, metric in metrics:
+            for metric in metrics:
                 result = metric(self)
-                self.res_topo.loc[n, name] = result
-                
+                self.res_topo.loc[n, metric.__name__] = result
+        
+        # Reset network to main topology
         self.apply_topology(self.main_topology)
+        pp.runpp(self)
             
     def plot_pf_res(self, topology='main'):
         if topology == 'main':
@@ -155,6 +159,10 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
         # Select only components in service
         for element in ('bus', 'line', 'trafo', 'ext_grid'):
             _select_in_service(net, element)
+            
+        # Reset network to main topology
+        self.apply_topology(self.main_topology)
+        pp.runpp(self)
             
         return pp.plotting.pf_res_plotly(net) 
             
