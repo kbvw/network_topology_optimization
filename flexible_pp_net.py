@@ -122,14 +122,14 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
     def run_all_pf(self, metrics):
         """Run load flow for each topology and store specified metrics.
         
-        Metrics are passed as an iterable of (named) functions, each
-        of which maps a Pandapower network object to a scalar.
-        The function name will be used for logging the metrics in 
-        the results table, accessible through the 'res_topo' attribute.
+        Metrics are passed as an iterable of tuples (name, function),
+        where 'name' is a string that will be used for logging the metrics
+        and 'function' maps a Pandapower network object to a scalar.
+        The results are accessible through the 'res_topo' attribute.
         """
         
         # Initialize dataframe
-        metric_names = (metric.__name__ for metric in metrics)
+        metric_names, _ = zip(*metrics)
         self.res_topo = pd.DataFrame(index=self.topo.index, 
                                      columns=metric_names,
                                      dtype=float)
@@ -138,9 +138,9 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
         for n, topology in self.topo.iteritems():
             self.apply_topology(topology)
             pp.runpp(self)
-            for metric in metrics:
+            for metric_name, metric in metrics:
                 result = metric(self)
-                self.res_topo.loc[n, metric.__name__] = result
+                self.res_topo.loc[n, metric_name] = result
         
         # Reset network to main topology
         self.apply_topology(self.main_topology)
