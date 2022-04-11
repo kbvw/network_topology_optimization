@@ -128,8 +128,12 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
         The results are accessible through the 'res_topo' attribute.
         """
         
+        # To do: proper handling of non-convergence
+        # To do: avoid unnecessary last load flow
+        
         # Initialize dataframe
         metric_names, _ = zip(*metrics)
+        metric_names = list(metric_names).append('converged')
         self.res_topo = pd.DataFrame(index=self.topo.index, 
                                      columns=metric_names,
                                      dtype=float)
@@ -137,34 +141,47 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
         # Log metrics for every topology
         for n, topology in self.topo.iteritems():
             self.apply_topology(topology)
-            pp.runpp(self)
-            for metric_name, metric in metrics:
-                result = metric(self)
-                self.res_topo.loc[n, metric_name] = result
+            try:
+                pp.runpp(self)
+            except pp.powerflow.LoadflowNotConverged:
+                self.res_topo.loc[n, 'converged'] = False
+            else:
+                self.res_topo.loc[n, 'converged'] = True
+                for metric_name, metric in metrics:
+                    result = metric(self)
+                    self.res_topo.loc[n, metric_name] = result
         
         # Reset network to main topology
         self.apply_topology(self.main_topology)
-        pp.runpp(self)
+        try:
+            pp.runpp(self)
+        except pp.powerflow.LoadflowNotConverged:
+            pass
             
     def plot_pf_res(self, topology='main'):
         if topology == 'main':
             topology = self.main_topology
+            
+        # To do: proper handling of non-convergence
         
         # Temporary copy of network object, adjusted for plotting
         net = self.deepcopy()
         
+        # Load flow for specified topology
         net.apply_topology(topology)
-        pp.runpp(net)
+        try: 
+            pp.runpp(net)
+        except pp.powerflow.LoadflowNotConverged:
+            print('Load flow did not converge')
+            
+        # Plot in case of convergence
+        else:    
         
-        # Select only components in service
-        for element in ('bus', 'line', 'trafo', 'ext_grid'):
-            _select_in_service(net, element)
+            # Select only components in service
+            for element in ('bus', 'line', 'trafo', 'ext_grid'):
+                _select_in_service(net, element)
             
-        # Reset network to main topology
-        self.apply_topology(self.main_topology)
-        pp.runpp(self)
-            
-        return pp.plotting.pf_res_plotly(net) 
+            return pp.plotting.pf_res_plotly(net) 
             
 def _select_in_service(net, element):
     
