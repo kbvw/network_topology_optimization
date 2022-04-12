@@ -133,7 +133,7 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
         
         # Initialize dataframe
         metric_names, _ = zip(*metrics)
-        metric_names = list(metric_names).append('converged')
+        metric_names = list(metric_names) + ['converged']
         self.res_topo = pd.DataFrame(index=self.topo.index, 
                                      columns=metric_names,
                                      dtype=float)
@@ -150,14 +150,7 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
                 for metric_name, metric in metrics:
                     result = metric(self)
                     self.res_topo.loc[n, metric_name] = result
-        
-        # Reset network to main topology
-        self.apply_topology(self.main_topology)
-        try:
-            pp.runpp(self)
-        except pp.powerflow.LoadflowNotConverged:
-            pass
-            
+                    
     def plot_pf_res(self, topology='main'):
         if topology == 'main':
             topology = self.main_topology
