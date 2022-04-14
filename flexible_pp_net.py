@@ -10,6 +10,7 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
     
     # To do:
     # - Serialization (frozensets, graph objects)
+    # - Name map for setting by element name
     
     # Circumvent Pandapower attribute restrictions when changing class
     def __setattr__(self, key, value):
@@ -94,11 +95,21 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
         net.main_topology.splittable_nodes = net.splittable_nodes
         net.main_topology.switchable_edges = net.switchable_edges
         
+        # Create maps for indexing tables by element name
+        supported_elements = ('bus', 'line', 'trafo', 'load', 'gen')
+        for element in supported_elements:
+            net.create_name_map(element)
+        
         return net
     
     def displace_aux_buses(self, x, y):
         self.bus_geodata.loc[self.bus['is_aux_bus']==True, 'x'] += x
         self.bus_geodata.loc[self.bus['is_aux_bus']==True, 'y'] += y
+        
+    def create_name_map(self, element):
+        name_map = getattr(self, element)['name']
+        name_map = pd.Series(name_map.index, index=name_map)
+        setattr(self, f'{element}_name_map', name_map)
               
     def topology_search(self, k=2, node_split=True, edge_switch=True):
         
@@ -129,7 +140,6 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
         """
         
         # To do: proper handling of non-convergence
-        # To do: avoid unnecessary last load flow
         
         # Initialize dataframe
         metric_names, _ = zip(*metrics)
