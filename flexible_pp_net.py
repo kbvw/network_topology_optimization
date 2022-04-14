@@ -8,9 +8,11 @@ __all__ = ['FlexibleNet']
 
 class FlexibleNet(pp.auxiliary.pandapowerNet):
     
+    # Support for a subset of Pandapower elements
+    _supported_elements = ('bus', 'line', 'trafo', 'load', 'gen')
+    
     # To do:
     # - Serialization (frozensets, graph objects)
-    # - Name map for setting by element name
     
     # Circumvent Pandapower attribute restrictions when changing class
     def __setattr__(self, key, value):
@@ -96,9 +98,7 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
         net.main_topology.switchable_edges = net.switchable_edges
         
         # Create maps for indexing tables by element name
-        supported_elements = ('bus', 'line', 'trafo', 'load', 'gen')
-        for element in supported_elements:
-            net.create_name_map(element)
+        net.update_name_maps()
         
         return net
     
@@ -106,19 +106,21 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
         self.bus_geodata.loc[self.bus['is_aux_bus']==True, 'x'] += x
         self.bus_geodata.loc[self.bus['is_aux_bus']==True, 'y'] += y
         
-    def create_name_map(self, element):
-        name_map = getattr(self, element)['name']
-        name_map = pd.Series(name_map.index, index=name_map)
-        setattr(self, f'{element}_name_map', name_map)
+    def update_name_maps(self):
+        for element in self._supported_elements:
+            name_map = getattr(self, element)['name']
+            name_map = pd.Series(name_map.index, index=name_map)
+            setattr(self, f'{element}_name_map', name_map)
               
     def topology_search(self, k=2, node_split=True, edge_switch=True):
         
         topo = topology_generator([self.main_topology], k,
-                                           node_split, edge_switch)
+                                  node_split, edge_switch)
         
-        self.topo = pd.Series(topo, dtype=object, name='topo_obj')
+        self.topo = pd.Series(topo, dtype=object, name='topo')
         
-        return len(self.topo)
+        print(f"{len(self.topo)} topologies found"
+              " and stored in 'topo' attribute")
     
     def reset_topology(self):
         apply_topology(self, 
