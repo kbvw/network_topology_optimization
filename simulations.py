@@ -83,7 +83,7 @@ def run_simulations(path, net, metrics, simulation_step_func,
     def set_eq_and_run(n): 
         for (e_name, q_name), q_value in eq_frame_dict.items():
             q_series = pd.Series(q_value.loc[n, :], name=q_name)
-            set_eq_by_bus_name(net, e_name, q_series)
+            set_eq_by_element_name(net, e_name, q_series)
         return simulation_step_func(net, metrics)
         
     # Check progress with logger
@@ -121,6 +121,6 @@ def init_simulations(path, eq_frame_dict):
     with open(path+'input_config.yaml', 'w') as config_file:
         yaml.dump(eq_list, config_file)
         
-def set_eq_by_bus_name(net, element, eq_series):
+def set_eq_by_element_name(net, element, eq_series):
     pp_idx = getattr(net, element + '_name_map')[eq_series.index]
     getattr(net, element).loc[pp_idx, eq_series.name] = eq_series.values
