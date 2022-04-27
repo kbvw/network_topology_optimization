@@ -27,6 +27,7 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
                     connected_subnet='all',
                     splittable_nodes='all',
                     switchable_edges='all',
+                    set_name_to_idx=False,
                     copy=True):
         
         # To do: 
@@ -40,13 +41,18 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
         else:
             net = pp_net
         net._setattr('__class__', cls)
-        
+               
         # Set element names to string datatype
         for element in cls._supported_elements:
             element_df = getattr(net, element)
+            if set_name_to_idx:
+                element_df['name'] = element_df.index
             element_df = element_df.astype({'name': pd.StringDtype()},
                                            copy=False)
             setattr(net, element, element_df)
+            
+        # Create maps for indexing tables by element name
+        net.update_name_maps()
         
         # If connected_subnet passed, store node indices in list
         if connected_subnet is not None:
@@ -109,7 +115,7 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
         net.main_topology.splittable_nodes = net.splittable_nodes
         net.main_topology.switchable_edges = net.switchable_edges
         
-        # Create maps for indexing tables by element name
+        # Update maps for indexing tables by element name
         net.update_name_maps()
         
         return net
