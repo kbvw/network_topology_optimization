@@ -26,15 +26,27 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
     def from_pp_net(cls, pp_net,
                     connected_subnet='all',
                     splittable_nodes='all',
-                    switchable_edges='all'):
+                    switchable_edges='all',
+                    copy=True):
         
         # To do: 
         # - Check if 'None' case does not break anything
         # - Ensure that flexible nodes/edges are subset of connected
+        # - Better defaults instead of potentially dangerous 'all'
         
-        # Construct instance as copy of Pandapower network
-        net = pp_net.deepcopy()
+        # Construct instance by copying or overwriting Pandapower network
+        if copy:
+            net = pp_net.deepcopy()
+        else:
+            net = pp_net
         net._setattr('__class__', cls)
+        
+        # Set element names to string datatype
+        for element in cls._supported_elements:
+            element_df = getattr(net, element)
+            element_df = element_df.astype({'name': pd.StringDtype()},
+                                           copy=False)
+            setattr(net, element, element_df)
         
         # If connected_subnet passed, store node indices in list
         if connected_subnet is not None:
