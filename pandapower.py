@@ -1,14 +1,20 @@
 from .topology_search import Topology
 
+# To do:
+#   - Node split compatibility for transformers: respect which end is which
+
 def infer_topology(pp_net, connected_subnet):
     
     # Extract nodes from bus table, keeping non-auxiliary buses
     bus_list = list(pp_net.bus[pp_net.bus['is_aux_bus']==False].index)
     
-    # Extract edges from line table, with line index stored as edge attribute
+    # Extract edges from line and trafo tables, storing index
     line_list = list(zip(pp_net.line['from_bus'], 
                          pp_net.line['to_bus'],
                          [{'line':idx} for idx in pp_net.line.index]))
+    trafo_list = list(zip(pp_net.trafo['hv_bus'], 
+                          pp_net.trafo['lv_bus'],
+                          [{'trafo':idx} for idx in pp_net.trafo.index]))
     
     # Extract attributes from load and generator tables
     load_list = list(zip(pp_net.load['bus'], pp_net.load.index))
@@ -18,6 +24,8 @@ def infer_topology(pp_net, connected_subnet):
     bus_list = [bus for bus in bus_list if bus in connected_subnet]
     line_list = [line for line in line_list if (line[0] in bus_list 
                                                 and line[1] in bus_list)]
+    trafo_list = [trafo for trafo in trafo_list if (trafo[0] in bus_list 
+                                                and trafo[1] in bus_list)]
     load_list = [line for line in load_list if line[0] in bus_list]
     gen_list = [gen for gen in gen_list if gen[0] in bus_list]
     
@@ -25,6 +33,7 @@ def infer_topology(pp_net, connected_subnet):
     topology = Topology()
     topology.add_nodes_from(bus_list)
     topology.add_edges_from(line_list)
+    topology.add_edges_from(trafo_list)
     
     # Add node attributes
     for bus, load in load_list:
@@ -73,5 +82,3 @@ def apply_topology(pp_net,
         # Set lines from topology to corresponding bus
         pp_net.line.loc[line, 'from_bus'] = from_bus
         pp_net.line.loc[line, 'to_bus'] = to_bus
-        
-    return pp_net
