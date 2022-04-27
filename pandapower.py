@@ -19,6 +19,7 @@ def infer_topology(pp_net, connected_subnet):
     # Extract attributes from load and generator tables
     load_list = list(zip(pp_net.load['bus'], pp_net.load.index))
     gen_list = list(zip(pp_net.gen['bus'], pp_net.gen.index))
+    eg_list = list(zip(pp_net.ext_grid['bus'], pp_net.ext_grid.index))
     
     # Keep only elements in connected subnet
     bus_list = [bus for bus in bus_list if bus in connected_subnet]
@@ -28,6 +29,7 @@ def infer_topology(pp_net, connected_subnet):
                                                 and trafo[1] in bus_list)]
     load_list = [line for line in load_list if line[0] in bus_list]
     gen_list = [gen for gen in gen_list if gen[0] in bus_list]
+    eg_list = [eg for eg in eg_list if eg[0] in bus_list]
     
     # Build the graph
     topology = Topology()
@@ -40,6 +42,8 @@ def infer_topology(pp_net, connected_subnet):
         topology.nodes[bus]['load'] = load  
     for bus, gen, in gen_list:
         topology.nodes[bus]['gen'] = gen
+    for bus, eg, in eg_list:
+        topology.nodes[bus]['ext_grid'] = eg
     
     return topology
 
@@ -72,13 +76,20 @@ def apply_topology(pp_net,
         # Set generators from topology to corresponding bus
         if 'gen' in elements:
             pp_net.gen.loc[elements['gen'], 'bus'] = bus
+        
+        # Set external connections from topology to corresponding bus
+        if 'ext_grid' in elements:
+            pp_net.ext_grid.loc[elements['ext_grid'], 'bus'] = bus
     
     # Extract line index while iterating over edges in topology
-    for from_bus, to_bus, line in topology.edges.data('line'):
+    for from_bus, to_bus, elements in topology.edges.data():
         
-        # Set lines from topology to in service
-        pp_net.line.loc[line, 'in_service'] = True
+        if 'line' in elements:
+            line = elements['line']
+            
+            # Set lines from topology to in service
+            pp_net.line.loc[line, 'in_service'] = True
         
-        # Set lines from topology to corresponding bus
-        pp_net.line.loc[line, 'from_bus'] = from_bus
-        pp_net.line.loc[line, 'to_bus'] = to_bus
+            # Set lines from topology to corresponding bus
+            pp_net.line.loc[line, 'from_bus'] = from_bus
+            pp_net.line.loc[line, 'to_bus'] = to_bus

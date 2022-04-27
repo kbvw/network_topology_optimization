@@ -9,7 +9,7 @@ __all__ = ['FlexibleNet']
 class FlexibleNet(pp.auxiliary.pandapowerNet):
     
     # Support for a subset of Pandapower elements
-    _supported_elements = ('bus', 'line', 'trafo', 'load', 'gen')
+    _supported_elements = ('bus', 'line', 'trafo', 'load', 'gen', 'ext_grid')
     
     # To do:
     # - Serialization (frozensets, graph objects)
@@ -50,9 +50,6 @@ class FlexibleNet(pp.auxiliary.pandapowerNet):
             element_df = element_df.astype({'name': pd.StringDtype()},
                                            copy=False)
             setattr(net, element, element_df)
-            
-        # Create maps for indexing tables by element name
-        net.update_name_maps()
         
         # If connected_subnet passed, store node indices in list
         if connected_subnet is not None:
