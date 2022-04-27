@@ -25,7 +25,10 @@ def check_node_min_degree(topology, node, min_degree):
     pass
 
 def check_edge_min_degree(topology, edge, min_degree):
-    pass
+    check = True
+    for node in edge:
+        check &= (topology.degree[node] >= min_degree)
+    return check
 
 def check_k_edge_connectivity(topology, edge, k):
     if is_locally_k_edge_connected(topology, edge[0], edge[1], k):
@@ -190,11 +193,14 @@ def edge_switch(topology, edge, k=2):
     new_topology = topology.copy()
     new_topology.remove_edge(*edge)
     
-    # Check k-edge connectivity
-    if check_k_edge_connectivity(new_topology, edge, k):
+    # Check degree
+    if check_edge_min_degree(topology, edge, k):
+    
+        # Check k-edge connectivity
+        if check_k_edge_connectivity(new_topology, edge, k):
         
-        # If check passed, keep topology
-        new_topology_list.append(new_topology)
+            # If check passed, keep topology
+            new_topology_list.append(new_topology)
     
     return new_topology_list
 
