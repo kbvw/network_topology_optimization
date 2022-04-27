@@ -125,7 +125,6 @@ def node_split(topology, node_pair, k=2):
         
         # Iterate over total number of edges to be moved to other node
         for split in splits:
-            new_topology_list = []
 
             # Obtain all combinations for this number of edges
             combs = combinations(edges, split)
