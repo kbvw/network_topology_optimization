@@ -1,28 +1,72 @@
-class TopologyDAG:
-    """Directed acyclic graph of possible topologies.
+from __future__ import annotations
+from abc import ABC, abstractmethod
+from typing import Iterable, Callable, TypeVar
+from dataclasses import dataclass
+from operator import sub
+from itertools import chain
+
+# Becomes unnecessary with PEP 673:
+# -> replace 'TDAGCoords' and 'TTopoCoords' with 'Self' as of Python 3.11
+TDAGCoords = TypeVar('TDAGCoords', bound='DAGCoords')
+TTopoCoords = TypeVar('TTopoCoords', bound='TopoCoords')
+
+class DAGCoords(ABC):
+    """Base class for implicit definition of a directed acyclic graph."""
     
-    Combination of a coordinate system and a map of coordinates 
-    to topology data.
-    """
+    @abstractmethod
+    def __eq__(self, other) -> bool:
+        """Return True if self is equal to other."""
     
-    # Subclass Dict / UserDict / another type of map?
+    @abstractmethod
+    def __hash__(self) -> int:
+        """Return integer hash value of self."""
     
-    def __init__(self, coord_sys):
-        
-        self.coord_sys = coord_sys
-        self.map = {}
-        
-class CoordinateSystem:
+    @abstractmethod
+    def children(self: TDAGCoords) -> Iterable[TDAGCoords]:
+        """Return iterable containing children."""
     
-    # Logic for defining moves on the topology DAG
+    @abstractmethod
+    def parents(self: TDAGCoords) -> Iterable[TDAGCoords]:
+        """Return iterable containing parents."""
     
+    def ischild(self: TDAGCoords, other: TDAGCoords) -> bool:
+        """Return True if self is a child of other."""
+        parents: Iterable[TDAGCoords] = self.parents()
+        return any(parent == other for parent in parents)
+    
+    def isparent(self: TDAGCoords, other: TDAGCoords) -> bool:
+        """Return True if self is a parent of other."""
+        children: Iterable[TDAGCoords] = self.children()
+        return any(child == other for child in children)
+    
+@dataclass(frozen=True, slots=True)
+class FrozenCoordsMixin:
+    """Mixin class for immutable and space-efficient coordinate types."""
+    coords: tuple[frozenset]
+    
+class TopoCoords(FrozenCoordsMixin, DAGCoords, ABC):
+    """Base coordinates for possible alterations to a graph topology."""
+    
+    @classmethod
+    @property
+    @abstractmethod
+    def space(cls) -> tuple[frozenset]:
+        """The full space of possible changes to the root topology."""
+    
+    def children(self: TTopoCoords) -> Iterable[TTopoCoords]:
+        """Return iterable containing children."""
+        raise NotImplementedError
+    
+    def parents(self: TTopoCoords) -> Iterable[TTopoCoords]:
+        """Return iterable containing parents."""
+        raise NotImplementedError
+
+T = TypeVar('T')
+def dimension_map(xs, ys) -> Callable[[T], frozenset[T]]:
     pass
-    
-class Topology:
-    """Topology object that stores topology coordinates and data."""
-    
-    # Subclass Dict / UserDict / another type of map?
-    
-    def __init__(self, coords):
-        
-        self.map = {'coords': coords}
+
+def children(coords):
+    return coords.children()
+
+def parents(coords):
+    return coords.parents()
