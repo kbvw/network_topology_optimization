@@ -126,19 +126,15 @@ def explorer(coords: DAGCoords,
     # Impure inner recursor function that mutates a shared 'seen' cache
     def recursor(coords: DAGCoords, depth: int) -> Iterable[DAGCoords]:
         nonlocal seen
-        if depth == 0:
-            if coords in seen:
-                return ()
-            else:
-                seen.add(coords)
-                return (coords,)
-        else:
+        if coords in seen:
+            return ()
+        elif depth > 0:
+            seen.add(coords)
             xs = enumerator(coords, guard)
-            xs = filter(lambda x: x not in seen, xs)
-            seen.update(xs)
-            xss = map(lambda x: recursor(x, depth-1), xs)
-            xs = chain.from_iterable(xss)
-            return chain((coords,), xs)
+            f = lambda x: recursor(x, depth-1)
+            return chain.from_iterable(map(f, xs))
+        else:
+            return (coords,)
     
     return recursor(coords, depth)
 
