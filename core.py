@@ -106,9 +106,7 @@ def unique(xs: Iterable[DAGCoords],
     
     seen: set[DAGCoords] = set(exclude)
     for x in xs:
-        if x in seen:
-            continue
-        else:
+        if x not in seen:
             seen.add(x)
             yield x
 
