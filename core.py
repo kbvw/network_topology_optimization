@@ -6,14 +6,17 @@ from itertools import chain
 
 from typing import Iterable, Optional, Callable, TypeVar
 
-# Becomes unnecessary with PEP 673:
-# -> replace 'TDAGCoords' with 'Self' as of Python 3.11
+# Becomes unnecessary with PEP 673 as of Python 3.11:
+# -> replace 'TGCoords', 'TDGCoords, 'TDAGCoords', 'TTreeCoords' with 'Self'
+TGCoords = TypeVar('TGCoords', bound='GCoords')
+TDGCoords = TypeVar('TDGCoords', bound='DGCoords')
 TDAGCoords = TypeVar('TDAGCoords', bound='DAGCoords')
+TTreeCoords = TypeVar('TTreeCoords', bound='TreeCoords')
 
-# Base coordinate class to implement for using the library functions
+# Base coordinate classes to implement for using the library functions
 
-class DAGCoords(ABC):
-    """Base class for implicit definition of a directed acyclic graph."""
+class GCoords(ABC):
+    """Base class for implicit definition of a graph."""
     __slots__ = ()
     
     @abstractmethod
@@ -25,70 +28,107 @@ class DAGCoords(ABC):
         """Return integer hash value of self."""
     
     @abstractmethod
-    def children(self: TDAGCoords) -> Iterable[TDAGCoords]:
+    def adjacent(self: TGCoords) -> Iterable[TGCoords]:
+        """Return iterable containing adjacent coordinates."""
+    
+    def isadjacent(self: TGCoords, other: TGCoords) -> bool:
+        """Return True if self is a parent of other."""
+        adjacent: Iterable[TGCoords] = self.adjacent()
+        return any(coords == other for coords in adjacent)
+
+class DGCoords(GCoords, ABC):
+    """Base class for implicit definition of a directed graph."""
+    __slots__ = ()
+    
+    @abstractmethod
+    def children(self: TDGCoords) -> Iterable[TDGCoords]:
         """Return iterable containing children."""
     
     @abstractmethod
-    def parents(self: TDAGCoords) -> Iterable[TDAGCoords]:
+    def parents(self: TDGCoords) -> Iterable[TDGCoords]:
         """Return iterable containing parents."""
     
-    def ischild(self: TDAGCoords, other: TDAGCoords) -> bool:
-        """Return True if self is a child of other."""
-        parents: Iterable[TDAGCoords] = self.parents()
-        return any(parent == other for parent in parents)
+    def adjacent(self: TDGCoords) -> Iterable[TDGCoords]:
+        """Return iterable containing adjacent coordinates."""
+        return chain(self.children(), self.parents())
     
-    def isparent(self: TDAGCoords, other: TDAGCoords) -> bool:
+    def ischild(self: TDGCoords, other: TDGCoords) -> bool:
+        """Return True if self is a child of other."""
+        parents: Iterable[TDGCoords] = self.parents()
+        return any(coords == other for coords in parents)
+    
+    def isparent(self: TDGCoords, other: TDGCoords) -> bool:
         """Return True if self is a parent of other."""
-        children: Iterable[TDAGCoords] = self.children()
-        return any(child == other for child in children)
+        children: Iterable[TDGCoords] = self.children()
+        return any(coords == other for coords in children)
 
-# Type aliases followed by main library functions
-Guard = Callable[[DAGCoords], bool]
-Enumerator = Callable[[DAGCoords, Optional[Guard]], Iterable[DAGCoords]]
+class DAGCoords(DGCoords, ABC):
+    """Base class for implicit definition of a directed acyclic graph."""
+    __slots__ = ()
 
-def children(coords: DAGCoords,
-             guard: Optional[Guard]=None) -> Iterable[DAGCoords]:
+class TreeCoords(DAGCoords, ABC):
+    """Base class for implicit definition of a tree graph."""
+    __slots__ = ()
+
+# Generic types
+
+T = TypeVar('T')
+GC = TypeVar('GC', bound=GCoords)
+DGC = TypeVar('DGC', bound=DGCoords)
+
+# Type aliases
+
+Guard = Callable[[GC], bool]
+Enumerator = Callable[[GC, Optional[Guard[GC]]], Iterable[GC]]
+
+# Main library functions
+
+def adjacent(coords: GC,
+             guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
+    
+    if guard is None:
+        return coords.adjacent()
+    else:
+        return filter(guard, coords.adjacent())
+
+def children(coords: DGC,
+             guard: Optional[Guard[DGC]]=None) -> Iterable[DGC]:
     
     if guard is None:
         return coords.children()
     else:
         return filter(guard, coords.children())
 
-def parents(coords: DAGCoords,
-            guard: Optional[Guard]=None) -> Iterable[DAGCoords]:
+def parents(coords: DGC,
+            guard: Optional[Guard[DGC]]=None) -> Iterable[DGC]:
     
     if guard is None:
         return coords.parents()
     else:
         return filter(guard, coords.parents())
 
-def adjacent(coords: DAGCoords,
-             guard: Optional[Guard]=None) -> Iterable[DAGCoords]:
-    
-    return chain(children(coords, guard), parents(coords, guard))
-
-def descendants(coords: DAGCoords, 
-                depth: int=1,
-                guard: Optional[Guard]=None) -> Iterable[DAGCoords]:
-    
-    return unique(recursor(coords, children, depth, guard), (coords,))
-
-def ancestors(coords: DAGCoords, 
-              depth: int=1,
-              guard: Optional[Guard]=None) -> Iterable[DAGCoords]:
-    
-    return unique(recursor(coords, parents, depth, guard), (coords,))
-
-def neighborhood(coords: DAGCoords, 
+def neighborhood(coords: GC, 
                  depth: int=1,
-                 guard: Optional[Guard]=None) -> Iterable[DAGCoords]:
+                 guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
     
     return unique(recursor(coords, adjacent, depth, guard), (coords,))
 
-def recursor(coords: DAGCoords, 
-             enumerator: Enumerator,
+def descendants(coords: DGC, 
+                depth: int=1,
+                guard: Optional[Guard[DGC]]=None) -> Iterable[DGC]:
+    
+    return unique(recursor(coords, children, depth, guard), (coords,))
+
+def ancestors(coords: DGC, 
+              depth: int=1,
+              guard: Optional[Guard[DGC]]=None) -> Iterable[DGC]:
+    
+    return unique(recursor(coords, parents, depth, guard), (coords,))
+
+def recursor(coords: GC, 
+             enumerator: Enumerator[GC],
              depth: int,
-             guard: Optional[Guard]=None) -> Iterable[DAGCoords]:
+             guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
     
     # Additional runtime coercion to int for safe recursion
     if (depth := int(depth)) < 0:
@@ -101,28 +141,28 @@ def recursor(coords: DAGCoords,
         f = lambda x: recursor(x, enumerator, depth-1, guard)
         return chain((coords,), chain.from_iterable(map(f, xs)))
 
-def unique(xs: Iterable[DAGCoords],
-           exclude: Iterable[DAGCoords]=()) -> Iterable[DAGCoords]:
+def unique(xs: Iterable[T],
+           exclude: Iterable[T]=()) -> Iterable[T]:
     
-    seen: set[DAGCoords] = set(exclude)
+    seen: set[T] = set(exclude)
     for x in xs:
         if x not in seen:
             seen.add(x)
             yield x
 
-def explorer(coords: DAGCoords, 
-             enumerator: Enumerator,
+def explorer(coords: GC, 
+             enumerator: Enumerator[GC],
              depth: int,
-             guard: Optional[Guard]=None) -> Iterable[DAGCoords]:
+             guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
     
     # Additional runtime coercion to int for safe recursion
     if (depth := int(depth)) < 0:
         raise ValueError('depth must be a positive integer')
     
-    seen: set[DAGCoords] = set()
+    seen: set[GC] = set()
     
     # Impure inner recursor function that mutates a shared 'seen' cache
-    def recursor(coords: DAGCoords, depth: int) -> Iterable[DAGCoords]:
+    def recursor(coords: GC, depth: int) -> Iterable[GC]:
         nonlocal seen
         if coords in seen:
             return ()
@@ -136,20 +176,20 @@ def explorer(coords: DAGCoords,
     
     return recursor(coords, depth)
 
-def crawler(coords: DAGCoords, 
-            enumerator: Enumerator,
+def crawler(coords: GC, 
+            enumerator: Enumerator[GC],
             depth: int,
-            guard: Optional[Guard]=None) -> Iterable[DAGCoords]:
+            guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
     
     # Runtime int coercion and value check for safe recursion
     if (depth := int(depth)) < 0:
         raise ValueError('depth must be a positive integer')
     
     # Starting node marked as seen
-    seen: set[DAGCoords] = {coords}
+    seen: set[GCoords] = {coords}
     
     # Impure inner recursive generator that mutates 'seen'
-    def recursor(coords: DAGCoords, depth: int) -> Iterable[DAGCoords]:
+    def recursor(coords: GC, depth: int) -> Iterable[GC]:
         nonlocal seen
         if depth == 0:
             if coords not in seen:
@@ -172,7 +212,7 @@ from itertools import product, starmap
 
 from typing import Type
 
-# Type variable for all types of topology coordinates
+# Generic type for all topology coordinates
 TC = TypeVar('TC', bound='TopoCoords')
 
 # Type aliases for topology coordinates
