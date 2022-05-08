@@ -148,7 +148,7 @@ def explore(coords: GC,
     
     for d in range(depth):
         seen.update(update)
-        queue, update, results = tee(unique2(chainmap(step, queue), seen), 3)
+        queue, update, results = tee(unique(chainmap(step, queue), seen), 3)
         yield from results
 
 def crawler(coords: GC,
@@ -194,12 +194,12 @@ def unique(xs: Iterable[T],
     exclude = set(exclude)
     seen: set[T] = set()
     for x in xs:
-        if not (x in exclude) or (x in seen):
+        if (x not in exclude) and (x not in seen):
             seen.add(x)
             yield x
     return seen, seen | exclude
 
-def unique2(xs: Iterable[T],
+def uniques(xs: Iterable[T],
             exclude: Iterable[T]=()) -> Iterable[T]:
     
     seen: set[T] = set(exclude)
