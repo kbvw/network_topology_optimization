@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from itertools import chain
+from itertools import chain, tee
+from functools import reduce
 
 from typing import Iterable, Optional, Callable, TypeVar
 
@@ -86,26 +87,17 @@ Enumerator = Callable[[GC, Optional[Guard[GC]]], Iterable[GC]]
 def adjacent(coords: GC,
              guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
     
-    if guard is None:
-        return coords.adjacent()
-    else:
-        return filter(guard, coords.adjacent())
+    return filter(guard, coords.adjacent())
 
 def children(coords: DGC,
              guard: Optional[Guard[DGC]]=None) -> Iterable[DGC]:
     
-    if guard is None:
-        return coords.children()
-    else:
-        return filter(guard, coords.children())
+    return filter(guard, coords.children())
 
 def parents(coords: DGC,
             guard: Optional[Guard[DGC]]=None) -> Iterable[DGC]:
     
-    if guard is None:
-        return coords.parents()
-    else:
-        return filter(guard, coords.parents())
+    return filter(guard, coords.parents())
 
 def neighborhood(coords: GC, 
                  depth: int=1,
@@ -124,6 +116,58 @@ def ancestors(coords: DGC,
               guard: Optional[Guard[DGC]]=None) -> Iterable[DGC]:
     
     return unique(recursor(coords, parents, depth, guard), (coords,))
+
+def traverse(coords: GC,
+             direction: Enumerator[GC],
+             depth: int=1,
+             guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
+    
+    # Additional runtime coercion to int for safe recursion
+    if (depth := int(depth)) < 0:
+        raise ValueError('depth must be a positive integer')
+    
+    if depth == 0:
+        return (coords,)
+    else:
+        cs = direction(coords, guard)
+        t = lambda c: traverse(c, direction, depth-1, guard)
+        return chain.from_iterable(map(t, cs))
+    
+def discover(coords: GC,
+             direction: Enumerator[GC],
+             depth: int=1,
+             guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
+    
+    # Additional runtime coercion to int for safe recursion
+    if (depth := int(depth)) < 0:
+        raise ValueError('depth must be a positive integer')
+    
+    seen: list[set[GC]] = [{coords}]
+    for d in range(depth):
+        seen.append(set())
+        for s in seen[d]:
+            for c in direction(s, guard):
+                if not c in reduce(lambda x, y: x | y, seen):
+                    seen[d+1].add(c)
+                    yield c
+
+def searcher(coords: GC,
+             direction: Enumerator[GC],
+             depth: int=1,
+             guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
+    
+    # Additional runtime coercion to int for safe recursion
+    if (depth := int(depth)) < 0:
+        raise ValueError('depth must be a positive integer')
+    
+    seen: set[GC] = {coords}
+    queue: Iterable[GC] = (coords,)
+    for d in range(depth):
+        f = lambda c: direction(c, guard)
+        cs = chain.from_iterable(map(f, queue))
+        queue, cs1, cs2 = tee(unique(cs, seen), 3)
+        seen.update(cs1)
+        yield from cs2
 
 def recursor(coords: GC, 
              enumerator: Enumerator[GC],
@@ -186,7 +230,7 @@ def crawler(coords: GC,
         raise ValueError('depth must be a positive integer')
     
     # Starting node marked as seen
-    seen: set[GCoords] = {coords}
+    seen: set[GC] = {coords}
     
     # Impure inner recursive generator that mutates 'seen'
     def recursor(coords: GC, depth: int) -> Iterable[GC]:
