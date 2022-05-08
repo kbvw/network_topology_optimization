@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from itertools import chain, tee
 from functools import reduce
 
-from typing import Iterable, Optional, Callable, TypeVar
+from typing import Iterable, Optional, Callable, Generator, TypeVar
 
 # Becomes unnecessary with PEP 673 as of Python 3.11:
 # -> replace 'TGCoords', 'TDGCoords, 'TDAGCoords', 'TTreeCoords' with 'Self'
@@ -82,6 +82,7 @@ DGC = TypeVar('DGC', bound=DGCoords)
 Guard = Callable[[GC], bool]
 Enumerator = Callable[[GC, Optional[Guard[GC]]], Iterable[GC]]
 GuardedDirection = Callable[[GC], Iterable[GC]]
+UniqueGenerator = Generator[T, None, tuple[set[T], set[T]]]
 
 # Main library functions
 
@@ -147,9 +148,36 @@ def explore(coords: GC,
     
     for d in range(depth):
         seen.update(update)
-        queue, update, results = tee(unique(chainmap(step, queue), seen), 3)
+        queue, update, results = tee(unique2(chainmap(step, queue), seen), 3)
         yield from results
+
+def crawler(coords: GC,
+            direction: Enumerator[GC],
+            depth: int=1,
+            guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
+    
+    step = guarded(direction, guard)
+    
+    queue: set[GC] = {coords}
+    seen: set[GC] = {coords}
+    
+    for d in range(depth):
+        queue, seen = yield from unique(chainmap(step, queue), seen)
         
+def discover(queue: Iterable[GC],
+             direction: Enumerator[GC],
+             depth: int=1,
+             exclude: Optional[Iterable[GC]]=None,
+             guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
+    
+    if exclude is None:
+        exclude = queue
+        
+    if depth > 0:
+        step = guarded(direction, guard)
+        queue, seen = yield from unique(chainmap(step, queue), exclude)
+        yield from discover(queue, direction, depth-1, seen, guard)
+
 def chainmap(f: Callable[[T], Iterable[T]], 
              xs: Iterable[T]) -> Iterable[T]:
     
@@ -161,7 +189,18 @@ def guarded(direction: Enumerator[GC],
     return lambda c: direction(c, guard)
 
 def unique(xs: Iterable[T],
-           exclude: Iterable[T]=()) -> Iterable[T]:
+           exclude: Iterable[T]=()) -> UniqueGenerator[T]:
+    
+    exclude = set(exclude)
+    seen: set[T] = set()
+    for x in xs:
+        if not (x in exclude) or (x in seen):
+            seen.add(x)
+            yield x
+    return seen, seen | exclude
+
+def unique2(xs: Iterable[T],
+            exclude: Iterable[T]=()) -> Iterable[T]:
     
     seen: set[T] = set(exclude)
     for x in xs:
