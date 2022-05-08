@@ -81,6 +81,7 @@ DGC = TypeVar('DGC', bound=DGCoords)
 
 Guard = Callable[[GC], bool]
 Enumerator = Callable[[GC, Optional[Guard[GC]]], Iterable[GC]]
+GuardedDirection = Callable[[GC], Iterable[GC]]
 
 # Main library functions
 
@@ -103,19 +104,19 @@ def neighborhood(coords: GC,
                  depth: int=1,
                  guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
     
-    return unique(recursor(coords, adjacent, depth, guard), (coords,))
+    return explore(coords, adjacent, depth, guard)
 
 def descendants(coords: DGC, 
                 depth: int=1,
                 guard: Optional[Guard[DGC]]=None) -> Iterable[DGC]:
     
-    return unique(recursor(coords, children, depth, guard), (coords,))
+    return explore(coords, children, depth, guard)
 
 def ancestors(coords: DGC, 
               depth: int=1,
               guard: Optional[Guard[DGC]]=None) -> Iterable[DGC]:
     
-    return unique(recursor(coords, parents, depth, guard), (coords,))
+    return explore(coords, parents, depth, guard)
 
 def traverse(coords: GC,
              direction: Enumerator[GC],
@@ -132,58 +133,32 @@ def traverse(coords: GC,
         cs = direction(coords, guard)
         t = lambda c: traverse(c, direction, depth-1, guard)
         return chain.from_iterable(map(t, cs))
-    
-def discover(coords: GC,
-             direction: Enumerator[GC],
-             depth: int=1,
-             guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
-    
-    # Additional runtime coercion to int for safe recursion
-    if (depth := int(depth)) < 0:
-        raise ValueError('depth must be a positive integer')
-    
-    seen: list[set[GC]] = [{coords}]
-    for d in range(depth):
-        seen.append(set())
-        for s in seen[d]:
-            for c in direction(s, guard):
-                if not c in reduce(lambda x, y: x | y, seen):
-                    seen[d+1].add(c)
-                    yield c
 
-def searcher(coords: GC,
-             direction: Enumerator[GC],
-             depth: int=1,
-             guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
+def explore(coords: GC,
+            direction: Enumerator[GC],
+            depth: int=1,
+            guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
     
-    # Additional runtime coercion to int for safe recursion
-    if (depth := int(depth)) < 0:
-        raise ValueError('depth must be a positive integer')
+    step = guarded(direction, guard)
     
     seen: set[GC] = {coords}
     queue: Iterable[GC] = (coords,)
+    update: Iterable[GC] = ()
+    
     for d in range(depth):
-        f = lambda c: direction(c, guard)
-        cs = chain.from_iterable(map(f, queue))
-        queue, cs1, cs2 = tee(unique(cs, seen), 3)
-        seen.update(cs1)
-        yield from cs2
+        seen.update(update)
+        queue, update, results = tee(unique(chainmap(step, queue), seen), 3)
+        yield from results
+        
+def chainmap(f: Callable[[T], Iterable[T]], 
+             xs: Iterable[T]) -> Iterable[T]:
+    
+    return chain.from_iterable(map(f, xs))
 
-def recursor(coords: GC, 
-             enumerator: Enumerator[GC],
-             depth: int,
-             guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
+def guarded(direction: Enumerator[GC],
+            guard: Optional[Guard[GC]]) -> GuardedDirection[GC]:
     
-    # Additional runtime coercion to int for safe recursion
-    if (depth := int(depth)) < 0:
-        raise ValueError('depth must be a positive integer')
-    
-    if depth == 0:
-        return (coords,)
-    else:
-        xs = enumerator(coords, guard)
-        f = lambda x: recursor(x, enumerator, depth-1, guard)
-        return chain((coords,), chain.from_iterable(map(f, xs)))
+    return lambda c: direction(c, guard)
 
 def unique(xs: Iterable[T],
            exclude: Iterable[T]=()) -> Iterable[T]:
@@ -193,60 +168,6 @@ def unique(xs: Iterable[T],
         if x not in seen:
             seen.add(x)
             yield x
-
-def explorer(coords: GC, 
-             enumerator: Enumerator[GC],
-             depth: int,
-             guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
-    
-    # Additional runtime coercion to int for safe recursion
-    if (depth := int(depth)) < 0:
-        raise ValueError('depth must be a positive integer')
-    
-    seen: set[GC] = set()
-    
-    # Impure inner recursor function that mutates a shared 'seen' cache
-    def recursor(coords: GC, depth: int) -> Iterable[GC]:
-        nonlocal seen
-        if coords in seen:
-            return ()
-        elif depth > 0:
-            seen.add(coords)
-            xs = enumerator(coords, guard)
-            f = lambda x: recursor(x, depth-1)
-            return chain.from_iterable(map(f, xs))
-        else:
-            return (coords,)
-    
-    return recursor(coords, depth)
-
-def crawler(coords: GC, 
-            enumerator: Enumerator[GC],
-            depth: int,
-            guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
-    
-    # Runtime int coercion and value check for safe recursion
-    if (depth := int(depth)) < 0:
-        raise ValueError('depth must be a positive integer')
-    
-    # Starting node marked as seen
-    seen: set[GC] = {coords}
-    
-    # Impure inner recursive generator that mutates 'seen'
-    def recursor(coords: GC, depth: int) -> Iterable[GC]:
-        nonlocal seen
-        if depth == 0:
-            if coords not in seen:
-                seen.add(coords)
-                yield coords
-        else:
-            for new_coords in enumerator(coords, guard):
-                if new_coords not in seen:
-                    seen.add(new_coords)
-                    yield new_coords
-                    yield from recursor(new_coords, depth-1)
-    
-    yield from recursor(coords, depth)
 
 # Specific implementation for topology search
 
