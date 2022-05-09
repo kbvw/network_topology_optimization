@@ -80,7 +80,7 @@ DGC = TypeVar('DGC', bound=DGCoords)
 # Type aliases
 
 Guard = Callable[[GC], bool]
-Enumerator = Callable[[GC, Optional[Guard[GC]]], Iterable[GC]]
+Direction = Callable[[GC, Optional[Guard[GC]]], Iterable[GC]]
 GuardedDirection = Callable[[GC], Iterable[GC]]
 UniqueGenerator = Generator[T, None, tuple[set[T], set[T]]]
 
@@ -119,94 +119,61 @@ def ancestors(coords: DGC,
     
     return explore(coords, parents, depth, guard)
 
-def traverse(coords: GC,
-             direction: Enumerator[GC],
-             depth: int=1,
-             guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
-    
-    # Additional runtime coercion to int for safe recursion
-    if (depth := int(depth)) < 0:
-        raise ValueError('depth must be a positive integer')
+def reach(coords: GC,
+          direction: Direction[GC],
+          depth: int=1,
+          guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
     
     if depth == 0:
         return (coords,)
-    else:
+    elif depth > 0:
         cs = direction(coords, guard)
-        t = lambda c: traverse(c, direction, depth-1, guard)
-        return chain.from_iterable(map(t, cs))
+        return chainmap(lambda c: reach(c, direction, depth-1, guard), cs)
+    else: 
+        raise ValueError('depth must be a positive integer')
 
 def explore(coords: GC,
-            direction: Enumerator[GC],
+            direction: Direction[GC],
             depth: int=1,
             guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
     
-    step = guarded(direction, guard)
+    step = lambda c: direction(c, guard)
     
     seen: set[GC] = {coords}
-    queue: Iterable[GC] = (coords,)
-    update: Iterable[GC] = ()
-    
-    for d in range(depth):
-        seen.update(update)
-        queue, update, results = tee(unique(chainmap(step, queue), seen), 3)
-        yield from results
-
-def crawler(coords: GC,
-            direction: Enumerator[GC],
-            depth: int=1,
-            guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
-    
-    step = guarded(direction, guard)
-    
     queue: set[GC] = {coords}
-    seen: set[GC] = {coords}
     
     for d in range(depth):
-        queue, seen = yield from unique(chainmap(step, queue), seen)
-        
+        seen = seen | queue
+        queue = yield from unique(chainmap(step, queue), seen)
+
 def discover(queue: Iterable[GC],
-             direction: Enumerator[GC],
+             direction: Direction[GC],
              depth: int=1,
-             exclude: Optional[Iterable[GC]]=None,
+             exclude: Optional[set[GC]]=None,
              guard: Optional[Guard[GC]]=None) -> Iterable[GC]:
     
     if exclude is None:
-        exclude = queue
+        exclude = set(queue)
         
     if depth > 0:
-        step = guarded(direction, guard)
-        queue, seen = yield from unique(chainmap(step, queue), exclude)
-        yield from discover(queue, direction, depth-1, seen, guard)
+        cs = chainmap(lambda c: direction(c, guard), queue)
+        qs = yield from unique(cs, exclude)
+        yield from discover(qs, direction, depth-1, exclude | qs, guard)
 
 def chainmap(f: Callable[[T], Iterable[T]], 
              xs: Iterable[T]) -> Iterable[T]:
     
     return chain.from_iterable(map(f, xs))
 
-def guarded(direction: Enumerator[GC],
-            guard: Optional[Guard[GC]]) -> GuardedDirection[GC]:
-    
-    return lambda c: direction(c, guard)
-
 def unique(xs: Iterable[T],
-           exclude: Iterable[T]=()) -> UniqueGenerator[T]:
+           exclude: set[T]=set()) -> Generator[T, None, set[T]]:
     
-    exclude = set(exclude)
     seen: set[T] = set()
     for x in xs:
         if (x not in exclude) and (x not in seen):
             seen.add(x)
             yield x
-    return seen, seen | exclude
-
-def uniques(xs: Iterable[T],
-            exclude: Iterable[T]=()) -> Iterable[T]:
-    
-    seen: set[T] = set(exclude)
-    for x in xs:
-        if x not in seen:
-            seen.add(x)
-            yield x
+    return seen
 
 # Specific implementation for topology search
 
