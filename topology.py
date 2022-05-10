@@ -162,7 +162,12 @@ TTopology = TypeVar('TTopology', bound='Topology')
 class Topology(tuple[ESwitch, NSplit],
                TopoData[ESwitch, NSplit, ESwitchSpace, NSplitSpace]):
     """Base coordinates for possible alterations to a graph topology."""
+    
     __slots__ = ()
+    
+    def __repr__(self) -> str:
+        
+        return super(tuple, self).__repr__()
     
     @classmethod
     def factory(cls: Type[TTopology], 
@@ -184,7 +189,7 @@ class Topology(tuple[ESwitch, NSplit],
         
         return self[1]
     
-    def edge_children(self: TTopology) -> Iterator[TTopology]:
+    def e_children(self: TTopology) -> Iterator[TTopology]:
         """Return iterable containing children in the edge dimension."""
         
         unchanged = self.e_space - self.e_coord
@@ -192,7 +197,7 @@ class Topology(tuple[ESwitch, NSplit],
         
         return self.factory(e_coords, (self.n_coord,))
     
-    def node_children(self: TTopology) -> Iterator[TTopology]:
+    def n_children(self: TTopology) -> Iterator[TTopology]:
         """Return iterable containing children in the node dimension."""
         
         unchanged = self.n_space - self.n_coord
@@ -200,20 +205,16 @@ class Topology(tuple[ESwitch, NSplit],
         
         return self.factory((self.e_coord,), n_coords)
     
-    def edge_parents(self: TTopology) -> Iterator[TTopology]:
+    def e_parents(self: TTopology) -> Iterator[TTopology]:
         """Return iterable containing parents in the edge dimension."""
         
         e_coords = (self.e_coord - {change} for change in self.e_coord)
         
         return self.factory(e_coords, (self.n_coord,))
     
-    def node_parents(self: TTopology) -> Iterator[TTopology]:
+    def n_parents(self: TTopology) -> Iterator[TTopology]:
         """Return iterable containing parents in the node dimension."""
         
         n_coords = (self.n_coord - {change} for change in self.n_coord)
         
         return self.factory((self.e_coord,), n_coords)
-    
-    def __repr__(self) -> str:
-        
-        return super(tuple, self).__repr__()
