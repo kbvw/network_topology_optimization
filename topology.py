@@ -4,73 +4,91 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator, Hashable
 from typing import TypeVar, Type, Generic, NoReturn
 
-from dataclasses import dataclass
-
-from itertools import chain, product, starmap
+from itertools import chain, product
 
 from network_topology_optimization.core import DAGCoords
 
 # Becomes unnecessary with PEP 673 as of Python 3.11:
-# -> replace 'TTopologyCoords' with 'Self'
-TTopologyCoords = TypeVar('TTopologyCoords', bound='TopoCoords')
+# -> replace 'TTopoCoords' with 'Self'
+TTopoCoords = TypeVar('TTopoCoords', bound='TopoCoords')
+
+# Base topology coordinate class to implement for using topology functions
 
 class TopoCoords(DAGCoords, ABC):
     """Base class for possible alterations to a graph topology."""
+    
     __slots__ = ()
     
     @abstractmethod
-    def node_children(self: TTopologyCoords) -> Iterable[TTopologyCoords]:
-        """Return iterable containing children in the node dimension."""
-    
-    @abstractmethod
-    def edge_children(self: TTopologyCoords) -> Iterable[TTopologyCoords]:
+    def e_children(self: TTopoCoords) -> Iterable[TTopoCoords]:
         """Return iterable containing children in the edge dimension."""
+        
+        raise NotImplementedError
     
     @abstractmethod
-    def node_parents(self: TTopologyCoords) -> Iterable[TTopologyCoords]:
-        """Return iterable containing parents in the node dimension."""
+    def n_children(self: TTopoCoords) -> Iterable[TTopoCoords]:
+        """Return iterable containing children in the node dimension."""
+        
+        raise NotImplementedError
     
     @abstractmethod
-    def edge_parents(self: TTopologyCoords) -> Iterable[TTopologyCoords]:
+    def e_parents(self: TTopoCoords) -> Iterable[TTopoCoords]:
         """Return iterable containing parents in the edge dimension."""
+        
+        raise NotImplementedError
     
-    def children(self: TTopologyCoords) -> Iterable[TTopologyCoords]:
+    @abstractmethod
+    def n_parents(self: TTopoCoords) -> Iterable[TTopoCoords]:
+        """Return iterable containing parents in the node dimension."""
+        
+        raise NotImplementedError
+    
+    def children(self: TTopoCoords) -> Iterator[TTopoCoords]:
         """Return iterable containing children."""
-        return chain(self.node_children(), self.edge_children())
+        
+        return chain(self.e_children(), self.n_children())
     
-    def parents(self: TTopologyCoords) -> Iterable[TTopologyCoords]:
+    def parents(self: TTopoCoords) -> Iterator[TTopoCoords]:
         """Return iterable containing parents."""
-        return chain(self.node_parents(), self.edge_parents())
+        
+        return chain(self.e_parents(), self.n_parents())
     
-    def is_node_child(self: TTopologyCoords, other: TTopologyCoords) -> bool:
-        """Return True if self is a node-child of other."""
-        node_parents: Iterable[TTopologyCoords] = self.node_parents()
-        return any(coords == other for coords in node_parents)
-    
-    def is_node_parent(self: TTopologyCoords, other: TTopologyCoords) -> bool:
-        """Return True if self is a node-parent of other."""
-        node_children: Iterable[TTopologyCoords] = self.node_children()
-        return any(coords == other for coords in node_children)
-    
-    def is_edge_child(self: TTopologyCoords, other: TTopologyCoords) -> bool:
+    def is_e_child(self: TTopoCoords, other: TTopoCoords) -> bool:
         """Return True if self is a edge-child of other."""
-        edge_parents: Iterable[TTopologyCoords] = self.edge_parents()
-        return any(coords == other for coords in edge_parents)
+        
+        e_parents: Iterable[TTopoCoords] = self.e_parents()
+        return any(coords == other for coords in e_parents)
     
-    def is_edge_parent(self: TTopologyCoords, other: TTopologyCoords) -> bool:
+    def is_n_child(self: TTopoCoords, other: TTopoCoords) -> bool:
+        """Return True if self is a node-child of other."""
+        
+        n_parents: Iterable[TTopoCoords] = self.n_parents()
+        return any(coords == other for coords in n_parents)
+    
+    def is_e_parent(self: TTopoCoords, other: TTopoCoords) -> bool:
         """Return True if self is a edge-parent of other."""
-        edge_children: Iterable[TTopologyCoords] = self.edge_children()
-        return any(coords == other for coords in edge_children)
+        
+        e_children: Iterable[TTopoCoords] = self.e_children()
+        return any(coords == other for coords in e_children)
+    
+    def is_n_parent(self: TTopoCoords, other: TTopoCoords) -> bool:
+        """Return True if self is a node-parent of other."""
+        
+        n_children: Iterable[TTopoCoords] = self.n_children()
+        return any(coords == other for coords in n_children)
 
 # Generic types for topology coordinates
+
 ECoord = TypeVar('ECoord', bound=Hashable)
 NCoord = TypeVar('NCoord', bound=Hashable)
 ESpace = TypeVar('ESpace', bound=Hashable)
 NSpace = TypeVar('NSpace', bound=Hashable)
 
+# Base class for storing topology coordinate data
+
 class TopoData(TopoCoords, Generic[ECoord, NCoord, ESpace, NSpace]): 
     """Base class for immutable topology search coordinates."""
-    #__slots__ = ('e_coord', 'n_coord')
+    
     __slots__ = ()
     
     @property
@@ -126,11 +144,8 @@ class TopoData(TopoCoords, Generic[ECoord, NCoord, ESpace, NSpace]):
         
         return f'{name}(e_coord={self.e_coord!r}, n_coord={self.e_coord!r})'
 
-# Becomes unnecessary with PEP 673 as of Python 3.11:
-# -> replace 'TTopoData', 'TTopology' with 'Self'
-TTopology = TypeVar('TTopology', bound='Topology')
+# Type aliases
 
-# Type aliasese
 Edge = Hashable
 Node = Hashable
 ESwitch = frozenset[Edge]
@@ -138,7 +153,14 @@ NSplit = frozenset[Node]
 ESwitchSpace = frozenset[Edge]
 NSplitSpace = frozenset[Node]
 
-class Topology(tuple, TopoData[ESwitch, NSplit, ESwitchSpace, NSplitSpace]):
+# Becomes unnecessary with PEP 673 as of Python 3.11:
+# -> replace 'TTopoData', 'TTopology' with 'Self'
+TTopology = TypeVar('TTopology', bound='Topology')
+
+# Specific implementation of topology coordinate logic
+
+class Topology(tuple[ESwitch, NSplit],
+               TopoData[ESwitch, NSplit, ESwitchSpace, NSplitSpace]):
     """Base coordinates for possible alterations to a graph topology."""
     __slots__ = ()
     
@@ -152,11 +174,13 @@ class Topology(tuple, TopoData[ESwitch, NSplit, ESwitchSpace, NSplitSpace]):
     
     @property
     def e_coord(self) -> ESwitch:
+        """The space of possible edge changes to the topology."""
         
         return self[0]
     
     @property
     def n_coord(self) -> NSplit:
+        """The space of possible node changes to the topology."""
         
         return self[1]
     
