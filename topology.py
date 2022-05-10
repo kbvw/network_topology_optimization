@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Iterable, Hashable, TypeVar, Type, NamedTuple, ClassVar
+from collections.abc import Iterable, Iterator, Hashable
+from typing import TypeVar, Type, Generic, NoReturn
 
 from dataclasses import dataclass
 
@@ -61,68 +62,134 @@ class TopoCoords(DAGCoords, ABC):
         edge_children: Iterable[TTopologyCoords] = self.edge_children()
         return any(coords == other for coords in edge_children)
 
+# Generic types for topology coordinates
+ECoord = TypeVar('ECoord', bound=Hashable)
+NCoord = TypeVar('NCoord', bound=Hashable)
+ESpace = TypeVar('ESpace', bound=Hashable)
+NSpace = TypeVar('NSpace', bound=Hashable)
+
+class TopoData(TopoCoords, Generic[ECoord, NCoord, ESpace, NSpace]): 
+    """Base class for immutable topology search coordinates."""
+    #__slots__ = ('e_coord', 'n_coord')
+    __slots__ = ()
+    
+    @property
+    @abstractmethod
+    def e_coord(self) -> ESpace: 
+        """The space of possible edge changes to the topology."""
+        
+        raise NotImplementedError
+        
+    @property
+    @abstractmethod
+    def n_coord(self) -> NSpace: 
+        """The space of possible node changes to the topology."""
+        
+        raise NotImplementedError
+    
+    @property
+    @abstractmethod
+    def e_space(self) -> ESpace: 
+        """The space of possible edge changes to the topology."""
+        
+        raise NotImplementedError
+    
+    @property
+    @abstractmethod
+    def n_space(self) -> NSpace: 
+        """The space of possible node changes to the topology."""
+        
+        raise NotImplementedError
+    
+    def __eq__(self, other: object) -> bool:
+        
+        if isinstance(other, type(self)):
+            return (self.e_coord == other.e_coord
+                    and self.n_coord == other.n_coord)
+        else:
+            return NotImplemented
+    
+    def __hash__(self) -> int:
+        
+        return hash(self.e_coord) ^ hash(self.n_coord)
+    
+    def __setattr__(self, key: str, value: object) -> NoReturn:
+        
+        name = type(self).__name__
+        msg = f"'{name}' object does not support attribute assignment"
+        
+        raise TypeError(msg)
+    
+    def __repr__(self) -> str:
+        
+        name = type(self).__name__
+        
+        return f'{name}(e_coord={self.e_coord!r}, n_coord={self.e_coord!r})'
+
 # Becomes unnecessary with PEP 673 as of Python 3.11:
-# -> replace 'TTopology' with 'Self'
+# -> replace 'TTopoData', 'TTopology' with 'Self'
 TTopology = TypeVar('TTopology', bound='Topology')
 
-# Type aliases for topology coordinates
-Node = Hashable
+# Type aliasese
 Edge = Hashable
-NodeSplit = Node
-EdgeSwitch = Edge
-NodeCoord = frozenset[NodeSplit]
-EdgeCoord = frozenset[EdgeSwitch]
+Node = Hashable
+ESwitch = frozenset[Edge]
+NSplit = frozenset[Node]
+ESwitchSpace = frozenset[Edge]
+NSplitSpace = frozenset[Node]
 
-@dataclass(frozen=True, slots=True)
-class TopologyData:
-    """Mixin class for immutable topology search coordinates."""
-    
-    node_splits: frozenset[NodeSplit]
-    edge_switches: frozenset[EdgeSwitch]
-    
-    node_split_space: ClassVar[frozenset[NodeSplit]]
-    edge_switch_space: ClassVar[frozenset[EdgeSwitch]]
-    
-class Topology(TopologyData, TopoCoords):
+class Topology(tuple, TopoData[ESwitch, NSplit, ESwitchSpace, NSplitSpace]):
     """Base coordinates for possible alterations to a graph topology."""
     __slots__ = ()
     
     @classmethod
     def factory(cls: Type[TTopology], 
-                n_coords: Iterable[NodeCoord], 
-                e_coords: Iterable[EdgeCoord]) -> Iterable[TTopology]:
+                e_coords: Iterable[ECoord], 
+                n_coords: Iterable[NCoord]) -> Iterator[TTopology]:
         """Return iterable with cartesian product of coordinates."""
         
-        return starmap(cls, product(n_coords, e_coords))
+        return map(cls, product(e_coords, n_coords))
     
-    def node_children(self: TTopology) -> Iterable[TTopology]:
-        """Return iterable containing children in the node dimension."""
+    @property
+    def e_coord(self) -> ESwitch:
         
-        unchanged = self.node_split_space - self.node_splits
-        changes = (self.node_splits | {change} for change in unchanged)
-        
-        return self.factory(changes, (self.edge_switches,))
+        return self[0]
     
-    def edge_children(self: TTopology) -> Iterable[TTopology]:
+    @property
+    def n_coord(self) -> NSplit:
+        
+        return self[1]
+    
+    def edge_children(self: TTopology) -> Iterator[TTopology]:
         """Return iterable containing children in the edge dimension."""
         
-        unchanged = self.edge_switch_space - self.edge_switches
-        changes = (self.edge_switches | {change} for change in unchanged)
+        unchanged = self.e_space - self.e_coord
+        e_coords = (self.e_coord | {change} for change in unchanged)
         
-        return self.factory((self.node_splits,), changes)
+        return self.factory(e_coords, (self.n_coord,))
     
-    def node_parents(self: TTopology) -> Iterable[TTopology]:
-        """Return iterable containing parents in the node dimension."""
+    def node_children(self: TTopology) -> Iterator[TTopology]:
+        """Return iterable containing children in the node dimension."""
         
-        changes = (self.node_splits - {change} 
-                   for change in self.node_splits)
+        unchanged = self.n_space - self.n_coord
+        n_coords = (self.n_coord | {change} for change in unchanged)
         
-        return self.factory(changes, (self.edge_switches,))
+        return self.factory((self.e_coord,), n_coords)
     
-    def edge_parents(self: TTopology) -> Iterable[TTopology]:
+    def edge_parents(self: TTopology) -> Iterator[TTopology]:
         """Return iterable containing parents in the edge dimension."""
         
-        changes = (self.edge_switches - {change} 
-                   for change in self.edge_switches)
+        e_coords = (self.e_coord - {change} for change in self.e_coord)
         
-        return self.factory((self.node_splits,), changes)
+        return self.factory(e_coords, (self.n_coord,))
+    
+    def node_parents(self: TTopology) -> Iterator[TTopology]:
+        """Return iterable containing parents in the node dimension."""
+        
+        n_coords = (self.n_coord - {change} for change in self.n_coord)
+        
+        return self.factory((self.e_coord,), n_coords)
+    
+    def __repr__(self) -> str:
+        
+        return super(tuple, self).__repr__()
