@@ -86,22 +86,22 @@ NSpace = TypeVar('NSpace', bound=Hashable)
 
 # Base class for storing topology coordinate data
 
-class TopoData(TopoCoords, Generic[ECoord, NCoord, ESpace, NSpace]): 
+class TopoData(TopoCoords, Generic[ECoord, NCoord, ESpace, NSpace], ABC): 
     """Base class for immutable topology search coordinates."""
     
     __slots__ = ()
     
     @property
     @abstractmethod
-    def e_coord(self) -> ESpace: 
-        """The space of possible edge changes to the topology."""
+    def e_coord(self) -> ECoord: 
+        """The set of edge changes to the topology."""
         
         raise NotImplementedError
         
     @property
     @abstractmethod
-    def n_coord(self) -> NSpace: 
-        """The space of possible node changes to the topology."""
+    def n_coord(self) -> NCoord: 
+        """The set of node changes to the topology."""
         
         raise NotImplementedError
     
@@ -130,12 +130,6 @@ class TopoData(TopoCoords, Generic[ECoord, NCoord, ESpace, NSpace]):
     def __hash__(self) -> int:
         
         return hash(self.e_coord) ^ hash(self.n_coord)
-    
-    def __repr__(self) -> str:
-        
-        name = type(self).__name__
-        
-        return f'{name}(e_coord={self.e_coord!r}, n_coord={self.e_coord!r})'
 
 # Type aliases
 
@@ -153,15 +147,29 @@ TTopology = TypeVar('TTopology', bound='Topology')
 # Specific implementation of topology coordinate logic
 # Direct subclass of tuple for better performance over many instances
 
-class Topology(tuple[ESwitch, NSplit],
-               TopoData[ESwitch, NSplit, ESwitchSpace, NSplitSpace]):
+class TopoTuple(tuple[ESwitch, NSplit], 
+                TopoData[ESwitch, NSplit, ESwitchSpace, NSplitSpace]):
     """Base coordinates for possible alterations to a graph topology."""
     
     __slots__ = ()
     
+    @property
+    def e_coord(self) -> ESwitch:
+        """The set of edge changes to the topology."""
+        
+        return self[0]
+    
+    @property
+    def n_coord(self) -> NSplit:
+        """The set of node changes to the topology."""
+        
+        return self[1]
+    
     def __repr__(self) -> str:
         
-        return super(tuple, self).__repr__()
+        name = type(self).__name__
+        
+        return f'{name}(e_coord={self.e_coord!r}, n_coord={self.e_coord!r})'
     
     def __setattr__(self, key: str, value: object) -> NoReturn:
         
@@ -169,6 +177,11 @@ class Topology(tuple[ESwitch, NSplit],
         msg = f"'{name}' object does not support attribute assignment"
         
         raise TypeError(msg)
+
+class Topology(TopoTuple):
+    """Base coordinates for possible alterations to a graph topology."""
+    
+    __slots__ = ()
     
     @classmethod
     def factory(cls: Type[TTopology], 
@@ -177,18 +190,6 @@ class Topology(tuple[ESwitch, NSplit],
         """Return iterable with cartesian product of coordinates."""
         
         return map(cls, product(e_coords, n_coords))
-    
-    @property
-    def e_coord(self) -> ESwitch:
-        """The space of possible edge changes to the topology."""
-        
-        return self[0]
-    
-    @property
-    def n_coord(self) -> NSplit:
-        """The space of possible node changes to the topology."""
-        
-        return self[1]
     
     def e_children(self: TTopology) -> Iterator[TTopology]:
         """Return iterable containing children in the edge dimension."""
