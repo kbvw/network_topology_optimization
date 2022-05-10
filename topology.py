@@ -87,7 +87,7 @@ NSpace = TypeVar('NSpace', bound=Hashable)
 # Base class for storing topology coordinate data
 
 class TopoData(TopoCoords, Generic[ECoord, NCoord, ESpace, NSpace], ABC): 
-    """Base class for immutable topology search coordinates."""
+    """Base class for data layout of topology alteration coordinates."""
     
     __slots__ = ()
     
@@ -149,7 +149,7 @@ TTopology = TypeVar('TTopology', bound='Topology')
 
 class TopoTuple(tuple[ESwitch, NSplit], 
                 TopoData[ESwitch, NSplit, ESwitchSpace, NSplitSpace]):
-    """Base coordinates for possible alterations to a graph topology."""
+    """Immutable implementation of topology alteration coordinates."""
     
     __slots__ = ()
     
@@ -179,7 +179,7 @@ class TopoTuple(tuple[ESwitch, NSplit],
         raise TypeError(msg)
 
 class Topology(TopoTuple):
-    """Base coordinates for possible alterations to a graph topology."""
+    """Basic implementation of topology alteration logic."""
     
     __slots__ = ()
     
