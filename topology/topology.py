@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator, Hashable
 from typing import TypeVar, Type, NoReturn
 
@@ -9,22 +10,36 @@ from .abc import TopoData
 
 # Type aliases
 
-Edge = Hashable
-Node = Hashable
-ECoord = frozenset[Edge]
-NCoord = frozenset[Node]
-ESpace = frozenset[Edge]
-NSpace = frozenset[Node]
+E = Hashable
+N = Hashable
+ECoord = frozenset[E]
+NCoord = frozenset[N]
+#NCoord = frozenset[tuple[N, tuple[frozenset[E], ...]]]
+ESpace = frozenset[E]
+NSpace = frozenset[N]
+#NSpace = frozenset[tuple[N, frozenset[E]]]
 
 # Becomes unnecessary with PEP 673 as of Python 3.11:
-# -> replace 'TTopoData', 'TTopology' with 'Self'
-TTopology = TypeVar('TTopology', bound='Topology')
+# -> replace 'TTopo' with 'Self'
+Topo = TypeVar('Topo', bound='Topology')
 
 # Specific implementation of topology coordinate logic
 # Direct subclass of tuple for better performance over many instances
 
-class TopoTuple(tuple[ECoord, NCoord], 
-                TopoData[ECoord, NCoord, ESpace, NSpace]):
+class Topology(TopoData[ECoord, NCoord, ESpace, NSpace], ABC):
+    
+    __slots__ = ()
+    
+    @classmethod
+    @abstractmethod
+    def factory(cls: Type[Topo], 
+                e_coords: Iterable[ECoord], 
+                n_coords: Iterable[NCoord]) -> Iterator[Topo]:
+        """Return iterable with cartesian product of coordinates."""
+        
+        raise NotImplementedError
+
+class TopoTuple(tuple[ECoord, NCoord], Topology):
     """Immutable implementation of topology alteration coordinates."""
     
     __slots__ = ()
@@ -41,6 +56,14 @@ class TopoTuple(tuple[ECoord, NCoord],
         
         return self[1]
     
+    @classmethod
+    def factory(cls: Type[Topo], 
+                e_coords: Iterable[ECoord], 
+                n_coords: Iterable[NCoord]) -> Iterator[Topo]:
+        """Return iterable with cartesian product of coordinates."""
+        
+        return map(cls, product(e_coords, n_coords))
+    
     def __repr__(self) -> str:
         
         name = type(self).__name__
@@ -53,46 +76,41 @@ class TopoTuple(tuple[ECoord, NCoord],
         msg = f"'{name}' object does not support attribute assignment"
         
         raise TypeError(msg)
-
-class Topology(TopoTuple):
-    """Basic implementation of topology alteration logic."""
+        
+class EFull(Topology):
     
     __slots__ = ()
     
-    @classmethod
-    def factory(cls: Type[TTopology], 
-                e_coords: Iterable[ECoord], 
-                n_coords: Iterable[NCoord]) -> Iterator[TTopology]:
-        """Return iterable with cartesian product of coordinates."""
-        
-        return map(cls, product(e_coords, n_coords))
-    
-    def e_children(self: TTopology) -> Iterator[TTopology]:
+    def e_children(self: Topo) -> Iterator[Topo]:
         """Return iterable containing children in the edge dimension."""
         
-        unchanged = self.e_space - self[0]
-        e_coords = (self[0] | {change} for change in unchanged)
+        unchanged = self.e_space - self.e_coord
+        e_coords = (self.e_coord | {change} for change in unchanged)
         
-        return self.factory(e_coords, [self[1]])
+        return self.factory(e_coords, [self.n_coord])
     
-    def n_children(self: TTopology) -> Iterator[TTopology]:
-        """Return iterable containing children in the node dimension."""
-        
-        unchanged = self.n_space - self[1]
-        n_coords = (self[1] | {change} for change in unchanged)
-        
-        return self.factory([self[0]], n_coords)
-    
-    def e_parents(self: TTopology) -> Iterator[TTopology]:
+    def e_parents(self: Topo) -> Iterator[Topo]:
         """Return iterable containing parents in the edge dimension."""
         
-        e_coords = (self[0] - {change} for change in self[0])
+        e_coords = (self.e_coord - {change} for change in self.e_coord)
         
-        return self.factory(e_coords, [self[1]])
+        return self.factory(e_coords, [self.n_coord])
+
+class NFull(Topology):
     
-    def n_parents(self: TTopology) -> Iterator[TTopology]:
+    __slots__ = ()
+    
+    def n_children(self: Topo) -> Iterator[Topo]:
+        """Return iterable containing children in the node dimension."""
+        
+        unchanged = self.n_space - self.n_coord
+        n_coords = (self.n_coord | {change} for change in unchanged)
+        
+        return self.factory([self.e_coord], n_coords)
+    
+    def n_parents(self: Topo) -> Iterator[Topo]:
         """Return iterable containing parents in the node dimension."""
         
-        n_coords = (self[1] - {change} for change in self[1])
+        n_coords = (self.n_coord - {change} for change in self.n_coord)
         
-        return self.factory([self[0]], n_coords)
+        return self.factory([self.e_coord], n_coords)
