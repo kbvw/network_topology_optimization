@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator, Hashable
-from typing import TypeVar, Type, NoReturn
+from typing import TypeVar, Type
 
 from itertools import product, chain
 
