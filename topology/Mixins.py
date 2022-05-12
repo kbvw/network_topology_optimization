@@ -4,29 +4,44 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator, Hashable
 from typing import TypeVar, Type, NoReturn
 
-from itertools import product
+from itertools import product, chain
 
 from .abc import TopoData
+from ..core.collections import NamedFrozenSet, NamedFrozenDict
 
 # Type aliases
 
 E = Hashable
 N = Hashable
-ECoord = frozenset[E]
-NCoord = frozenset[N]
-#NCoord = frozenset[tuple[N, tuple[frozenset[E], ...]]]
-ESpace = frozenset[E]
-NSpace = frozenset[N]
-#NSpace = frozenset[tuple[N, frozenset[E]]]
+Switch = E
+Split = tuple[N, tuple[frozenset[E], ...]]
+
+class ECoord(NamedFrozenSet[E]):
+    """Elements that are switched."""
+    
+    __slots__ = ()
+
+class NCoord(NamedFrozenDict[N, Split]):
+    """Nodes that are split."""
+    
+    __slots__ = ()
+
+class ESpace(NamedFrozenSet[E]):
+    """Space of all possible element switches."""
+    
+    __slots__ = ()
+
+class NSpace(NamedFrozenDict[N, tuple[Split, ...]]):
+    """Space of all possible node splits."""
+    
+    __slots__ = ()
 
 # Becomes unnecessary with PEP 673 as of Python 3.11:
 # -> replace 'TTopo' with 'Self'
 Topo = TypeVar('Topo', bound='Topology')
 
-# Specific implementation of topology coordinate logic
-# Direct subclass of tuple for better performance over many instances
-
 class Topology(TopoData[ECoord, NCoord, ESpace, NSpace], ABC):
+    """Base class for all topology object mixins."""
     
     __slots__ = ()
     
@@ -38,6 +53,8 @@ class Topology(TopoData[ECoord, NCoord, ESpace, NSpace], ABC):
         """Return iterable with cartesian product of coordinates."""
         
         raise NotImplementedError
+
+# Direct subclass of tuple for better performance over many instances
 
 class TopoTuple(tuple[ECoord, NCoord], Topology):
     """Immutable implementation of topology alteration coordinates."""
@@ -66,9 +83,18 @@ class TopoTuple(tuple[ECoord, NCoord], Topology):
     
     def __repr__(self) -> str:
         
+        try:
+            e_coord = repr(self[0]) + ','
+        except IndexError:
+            e_coord = ''
+        try:
+            n_coord = ' ' + repr(self[1])
+        except IndexError:
+            n_coord = ''
+        
         name = type(self).__name__
         
-        return f'{name}(e_coord={self.e_coord!r}, n_coord={self.e_coord!r})'
+        return f'{name}(({e_coord + n_coord}))'
     
     def __setattr__(self, key: str, value: object) -> NoReturn:
         
@@ -77,40 +103,58 @@ class TopoTuple(tuple[ECoord, NCoord], Topology):
         
         raise TypeError(msg)
         
-class EFull(Topology):
+class EC(Topology):
     
     __slots__ = ()
     
     def e_children(self: Topo) -> Iterator[Topo]:
         """Return iterable containing children in the edge dimension."""
         
-        unchanged = self.e_space - self.e_coord
-        e_coords = (self.e_coord | {change} for change in unchanged)
+        unswitched = (e for e in self.e_space if e not in self.e_coord)
+        
+        e_coords = (ECoord(self.e_coord | {switch})
+                    for switch in unswitched)
         
         return self.factory(e_coords, [self.n_coord])
+
+class EP(Topology):
+    
+    __slots__ = ()
     
     def e_parents(self: Topo) -> Iterator[Topo]:
         """Return iterable containing parents in the edge dimension."""
         
-        e_coords = (self.e_coord - {change} for change in self.e_coord)
+        e_coords = (ECoord(e for e in self.e_coord if not e == switch)
+                    for switch in self.e_coord)
         
         return self.factory(e_coords, [self.n_coord])
 
-class NFull(Topology):
+class NC(Topology):
     
     __slots__ = ()
     
     def n_children(self: Topo) -> Iterator[Topo]:
         """Return iterable containing children in the node dimension."""
         
-        unchanged = self.n_space - self.n_coord
-        n_coords = (self.n_coord | {change} for change in unchanged)
+        unsplit = (n for n in self.n_space if n not in self.n_coord)
+        splits = chain(split for n in unsplit 
+                       for split in self.n_space[n])
+        
+        n_coords = (NCoord(self.n_coord | {split[0]: split}) 
+                    for split in splits)
         
         return self.factory([self.e_coord], n_coords)
+
+class NP(Topology):
+    
+    __slots__ = ()
     
     def n_parents(self: Topo) -> Iterator[Topo]:
         """Return iterable containing parents in the node dimension."""
         
-        n_coords = (self.n_coord - {change} for change in self.n_coord)
+        n_coords = (NCoord((n, self.n_coord[n]) 
+                           for n in self.n_coord 
+                           if not n == split)
+                    for split in self.n_coord)
         
         return self.factory([self.e_coord], n_coords)
