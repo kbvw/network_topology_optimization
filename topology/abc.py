@@ -3,7 +3,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator, Hashable
 from typing import TypeVar, Generic
-
 from itertools import chain
 
 from ..core.abc import DAGCoords
@@ -81,8 +80,8 @@ class TopoCoords(DAGCoords, ABC):
 
 ECoord = TypeVar('ECoord', bound=Hashable)
 NCoord = TypeVar('NCoord', bound=Hashable)
-ESpace = TypeVar('ESpace', bound=Hashable)
-NSpace = TypeVar('NSpace', bound=Hashable)
+ESpace = TypeVar('ESpace')
+NSpace = TypeVar('NSpace')
 
 # Base class for storing topology coordinate data
 
