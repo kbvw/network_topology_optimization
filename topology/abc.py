@@ -80,12 +80,10 @@ class TopoCoords(DAGCoords, ABC):
 
 ECoord = TypeVar('ECoord', bound=Hashable)
 NCoord = TypeVar('NCoord', bound=Hashable)
-ESpace = TypeVar('ESpace')
-NSpace = TypeVar('NSpace')
 
 # Base class for storing topology coordinate data
 
-class TopoData(TopoCoords, Generic[ECoord, NCoord, ESpace, NSpace], ABC): 
+class TopoData(TopoCoords, Generic[ECoord, NCoord], ABC): 
     """Base class for data layout of topology alteration coordinates."""
     
     __slots__ = ()
@@ -101,20 +99,6 @@ class TopoData(TopoCoords, Generic[ECoord, NCoord, ESpace, NSpace], ABC):
     @abstractmethod
     def n_coord(self) -> NCoord: 
         """The set of node changes to the topology."""
-        
-        raise NotImplementedError
-    
-    @property
-    @abstractmethod
-    def e_space(self) -> ESpace: 
-        """The space of possible edge changes to the topology."""
-        
-        raise NotImplementedError
-    
-    @property
-    @abstractmethod
-    def n_space(self) -> NSpace: 
-        """The space of possible node changes to the topology."""
         
         raise NotImplementedError
     
