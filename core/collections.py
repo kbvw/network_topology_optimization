@@ -1,9 +1,11 @@
 from typing import TypeVar, Generic, Hashable
 
-K = TypeVar('K', bound=Hashable)
-V = TypeVar('V', bound=Hashable)
+# To do: eliminate super from repr methods
 
-class NamedFrozenSet(frozenset[K], Generic[K]):
+A = TypeVar('A', bound=Hashable)
+B = TypeVar('B', bound=Hashable)
+
+class NamedFrozenSet(frozenset[A], Generic[A]):
     """Hashable and immutable named set."""
     
     __slots__ = ()
@@ -20,7 +22,7 @@ class NamedFrozenSet(frozenset[K], Generic[K]):
         
         return f'{name}({{{items}}})'
 
-class NamedFrozenDict(dict[K, V], Generic[K, V]):
+class NamedFrozenDict(dict[A, B], Generic[A, B]):
     """Hashable and immutable named mapping."""
     
     __slots__ = ()
@@ -90,3 +92,14 @@ class NamedFrozenDict(dict[K, V], Generic[K, V]):
         msg = f"'{name}' object does not support dict setdefault method"
         
         raise TypeError(msg)
+
+class NamedTwoTuple(tuple[A, B], Generic[A, B]):
+    """Hashable and immutable named tuple with two items."""
+    
+    __slots__ = ()
+    
+    def __repr__(self) -> str:
+        
+        name = type(self).__name__
+        
+        return f'{name}({super().__repr__()})'
