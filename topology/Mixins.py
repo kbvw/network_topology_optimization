@@ -40,10 +40,24 @@ class NSpace(NamedFrozenDict[N, tuple[Split, ...]]):
 # -> replace 'TTopo' with 'Self'
 Topo = TypeVar('Topo', bound='Topology')
 
-class Topology(TopoData[ECoord, NCoord, ESpace, NSpace], ABC):
+class Topology(TopoData[ECoord, NCoord], ABC):
     """Base class for all topology object mixins."""
     
     __slots__ = ()
+    
+    @property
+    @abstractmethod
+    def e_space(self) -> ESpace: 
+        """The space of possible edge changes to the topology."""
+        
+        raise NotImplementedError
+    
+    @property
+    @abstractmethod
+    def n_space(self) -> NSpace: 
+        """The space of possible node changes to the topology."""
+        
+        raise NotImplementedError
     
     @classmethod
     @abstractmethod
@@ -83,26 +97,10 @@ class TopoTuple(tuple[ECoord, NCoord], Topology):
     
     def __repr__(self) -> str:
         
-        try:
-            e_coord = repr(self[0]) + ','
-        except IndexError:
-            e_coord = ''
-        try:
-            n_coord = ' ' + repr(self[1])
-        except IndexError:
-            n_coord = ''
-        
         name = type(self).__name__
         
-        return f'{name}(({e_coord + n_coord}))'
-    
-    def __setattr__(self, key: str, value: object) -> NoReturn:
-        
-        name = type(self).__name__
-        msg = f"'{name}' object does not support attribute assignment"
-        
-        raise TypeError(msg)
-        
+        return f'{name}({super().__repr__()})'
+
 class EC(Topology):
     
     __slots__ = ()
