@@ -2,9 +2,9 @@ from collections.abc import (Hashable, Iterable, Iterator, Collection,
                              Mapping, Set)
 from typing import Optional
 
-from ..core.core import chainmap
+from itertools import combinations, product, chain
 
-from itertools import combinations, product
+from ..core.core import chainmap
 
 from .coords import ECoord, NCoord, ESpace, NSpace
 from .graphs import connections, connection_list, degree, degree_list
@@ -82,17 +82,21 @@ def node_splits(node: N,
     
     return iter([])
 
+# Have fun with this one
+
 def split(es: frozenset[E],
           min_deg: int,
-          max_splits: int) -> Iterable[Hashable]:
+          max_splits: int) -> Iterable[Split]:
+    """All possible ways to divide elements into distinguishable splits."""
     
-    if (len(es) < 2 * min_deg) or (max_splits < 2):
-        return tuple([es])
+    if (len(es) >= 2 * min_deg) and (max_splits > 1):
+        comb = lambda r: (frozenset(c) for c in combinations(es, r))
+        take = tuple(chainmap(comb, range(min_deg, len(es) - min_deg + 1)))
+        rest = (split(es - t, min_deg, max_splits - 1) for t in take)
+        prod = (product([t], r) for t, r in zip(take, rest))
+        return ((t, *r) for p in prod for t, r in p)
     else:
-        f = lambda r: (frozenset(c) for c in combinations(es, r))
-        ss = chainmap(f, range(min_deg, len(es) - min_deg + 1))
-        return ((s, *split(es - s, min_deg, max_splits - 1)) for s in ss)
-
+        return tuple([tuple([es])])
 
 def make_root():
     pass
