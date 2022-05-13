@@ -47,14 +47,14 @@ class Topology(TopoData[ECoord, NCoord], ABC):
     
     @property
     @abstractmethod
-    def e_space(self) -> ESpace: 
+    def e_space(self) -> ESpace:
         """The space of possible edge changes to the topology."""
         
         raise NotImplementedError
     
     @property
     @abstractmethod
-    def n_space(self) -> NSpace: 
+    def n_space(self) -> NSpace:
         """The space of possible node changes to the topology."""
         
         raise NotImplementedError
