@@ -13,15 +13,15 @@ from ..core.collections import NamedFrozenSet, NamedFrozenDict
 
 E = Hashable
 N = Hashable
-Switch = E
-Split = tuple[N, tuple[frozenset[E], ...]]
+Split = Iterable[frozenset[E]]
+NSplit = tuple[N, Split]
 
 class ECoord(NamedFrozenSet[E]):
     """Elements that are switched."""
     
     __slots__ = ()
 
-class NCoord(NamedFrozenDict[N, Split]):
+class NCoord(NamedFrozenDict[N, NSplit]):
     """Nodes that are split."""
     
     __slots__ = ()
@@ -31,7 +31,7 @@ class ESpace(NamedFrozenSet[E]):
     
     __slots__ = ()
 
-class NSpace(NamedFrozenDict[N, tuple[Split, ...]]):
+class NSpace(NamedFrozenDict[N, tuple[NSplit, ...]]):
     """Space of all possible node splits."""
     
     __slots__ = ()
