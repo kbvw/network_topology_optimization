@@ -1,4 +1,5 @@
-from typing import TypeVar, Generic, Hashable
+from collections.abc import Hashable
+from typing import TypeVar, Generic
 
 # To do: eliminate super from repr methods
 

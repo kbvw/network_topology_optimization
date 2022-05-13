@@ -9,7 +9,9 @@ from .abc import GCoords, DGCoords
 
 # Generic types
 
-T = TypeVar('T')
+A = TypeVar('A')
+B = TypeVar('B')
+
 GC = TypeVar('GC', bound=GCoords)
 DGC = TypeVar('DGC', bound=DGCoords)
 
@@ -88,14 +90,14 @@ def area(queue: Iterable[GC],
         qs = yield from unique(cs, exclude)
         yield from area(qs, direction, depth-1, exclude | qs, guard)
 
-def chainmap(f: Callable[[T], Iterable[T]], xs: Iterable[T]) -> Iterator[T]:
+def chainmap(f: Callable[[A], Iterable[B]], xs: Iterable[A]) -> Iterator[B]:
     
     return chain.from_iterable(map(f, xs))
 
-def unique(xs: Iterable[T],
-           exclude: Set[T] = frozenset()) -> Generator[T, None, set[T]]:
+def unique(xs: Iterable[A],
+           exclude: Set[A] = frozenset()) -> Generator[A, None, set[A]]:
     
-    seen: set[T] = set()
+    seen: set[A] = set()
     for x in xs:
         if (x not in exclude) and (x not in seen):
             seen.add(x)
