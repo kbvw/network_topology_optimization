@@ -1,6 +1,8 @@
-from collections.abc import Hashable, Iterable, Mapping
+from collections.abc import Hashable, Iterable, Iterator, Mapping
 
 from itertools import chain
+
+from .coords import Topology
 
 E = Hashable
 N = Hashable
@@ -16,6 +18,9 @@ Degree = int
 
 AList = Mapping[N, Adjacent]
 DList = Mapping[N, Degree]
+
+SubNs = Iterator[tuple[N, int]]
+SubCs = Iterator[frozenset[E]]
 
 def e_list(a_list: AList) -> set[E]:
     """Unique elements in adjacency list."""
@@ -56,3 +61,19 @@ def degree_list(a_list: AList) -> DList:
     """Number of elements connected to each node in the adjacency list."""
     
     return {n: degree(a_list, n) for n in a_list}
+
+def topology(a_list: AList, coords: Topology) -> AList:
+    """Adjacency list of topology."""
+    
+    pass
+
+def sub_nodes(n: N, coords: Topology) -> SubNs:
+    """Tuple of sub-nodes resulting from a node split."""
+    
+    return ((n, i) for i in range(len(coords.n_coord[n])))
+
+def sub_connections(n: N, en_list: ENList, coords: Topology) -> SubCs:
+    """Tuple of elements."""
+    
+    guard = lambda e: (e in en_list) and (e not in coords.e_coord)
+    return (frozenset(filter(guard, es)) for es in coords.n_coord[n][1])

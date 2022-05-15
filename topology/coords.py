@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterable, Iterator, Hashable
+from collections.abc import Iterable, Iterator, Hashable, Collection
 from typing import TypeVar, Type
 
 from itertools import product, chain
@@ -13,7 +13,7 @@ from ..core.collections import NamedFrozenSet, NamedFrozenDict
 
 E = Hashable
 N = Hashable
-Split = Iterable[frozenset[E]]
+Split = Collection[frozenset[E]]
 NSplit = tuple[N, Split]
 
 class ECoord(NamedFrozenSet[E]):
@@ -31,7 +31,7 @@ class ESpace(NamedFrozenSet[E]):
     
     __slots__ = ()
 
-class NSpace(NamedFrozenDict[N, tuple[NSplit, ...]]):
+class NSpace(NamedFrozenDict[N, frozenset[NSplit]]):
     """Space of all possible node splits."""
     
     __slots__ = ()

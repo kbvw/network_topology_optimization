@@ -1,4 +1,5 @@
-from collections.abc import Hashable, Iterable, Iterator, Mapping, Set
+from collections.abc import (Hashable, Iterable, Iterator,
+                             Mapping, Set, Collection)
 
 from ..core.itertools import splits, unique
 
@@ -6,6 +7,8 @@ from .coords import ESpace, NSpace, ECoord, NCoord, Topology
 from .coords import TopoTuple, EC, EP, NC, NP
 
 from .graphs import ne_connections, ne_connection_list, degree, degree_list
+
+# To do: non-connection elements in node splits
 
 E = Hashable
 N = Hashable
@@ -15,7 +18,7 @@ AList = Mapping[N, Mapping[N, Iterable[E]]]
 EList = Iterable[E]
 NList = Iterable[tuple[N, Iterable[E]]]
 
-Split = Iterable[frozenset[E]]
+Split = Collection[frozenset[E]]
 NSplit = tuple[N, Split]
 
 def make_e_space(e_list: EList,
@@ -55,7 +58,7 @@ def make_n_space(n_list: NList,
     if not isinstance(max_splits, Iterable):
         max_splits = (max_splits for n in a_list)
     
-    return NSpace({n: tuple(node_splits(n[0], n[1], a_list, min_deg, s))
+    return NSpace({n: frozenset(node_splits(n[0], n[1], a_list, min_deg, s))
                    for n, s in zip(n_list, max_splits)})
 
 def node_splits(node: N,
@@ -75,12 +78,14 @@ def node_splits(node: N,
     
     e_connect = e_list & frozenset(ne_connections(a_list, node))
     
-    n_splits = ((node, s) for s in splits(e_connect, min_deg, max_splits))
+    n_splits = splits(e_connect, min_deg, max_splits)
+    
+    # Rest of e_list? Rest of e not in e_list or a_list? Force ordered?
     
     if ordered:
-        return n_splits
+        return ((node, tuple(s)) for s in n_splits)
     else:
-        return unique(n_splits)
+        return unique((node, frozenset(s)) for s in n_splits)
 
 def make_root(e_space: ESpace, n_space: NSpace) -> Topology:
     """Root of coordinate system defined by e-space and n-space."""
