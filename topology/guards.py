@@ -52,18 +52,17 @@ def check_degree(coords: Topology,
                  min_deg: int = 2) -> bool:
     """True if smallest degree in topology is above minimum degree."""
     
-    d = dict(d_list)
+    d_list = dict(d_list)
     
     for e in coords.e_coord:
-        for n in en_list[e]:
-            deg = d[n] - 1
-            if deg < min_deg:
-                return False
-            d[n] = deg
+        ds = [(n, d_list[n] - 1) for n in en_list[e]]
+        if any(d < min_deg for _, d in ds):
+            return False
+        d_list.update(ds)
     
     for n in coords.n_coord:
-        subcs = sub_connections(n, en_list, coords)
-        if any(len(es) < min_deg for es in subcs):
-               return False
+        cs = sub_connections(n, en_list, coords)
+        if any(len(es) < min_deg for es in cs):
+            return False
            
     return True
