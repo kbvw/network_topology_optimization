@@ -29,13 +29,13 @@ def splits(xs: Set[A],
     
     if (len(xs) >= 2 * min_size) and (max_splits > 1):
         
-        comb = lambda n: (frozenset(c) for c in combinations(xs, n))
-        split = chainmap(comb, range(min_size, len(xs) - min_size + 1))
+        sizes = range(min_size, len(xs) - min_size + 1)
+        yss = (frozenset(c) for n in sizes for c in combinations(xs, n))
         
-        subsplits = lambda ys: splits(xs - ys, min_size, max_splits - 1)
-        packed = (product([s], subsplits(s)) for s in split)
+        prod = (product([ys], splits(xs - ys, min_size, max_splits - 1))
+                for ys in yss)
         
-        return ((s, *subs) for p in packed for s, subs in p)
+        return ((split, *subsplits) for p in prod for split, subsplits in p)
     
     else:
         return iter([tuple([frozenset(xs)])])
