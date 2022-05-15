@@ -3,14 +3,10 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator, Callable, Generator, Set
 from typing import Optional, TypeVar, TypeAlias
 
-from itertools import chain
-
 from .abc import GCoords, DGCoords
+from .itertools import chainmap, unique
 
 # Generic types
-
-A = TypeVar('A')
-B = TypeVar('B')
 
 GC = TypeVar('GC', bound=GCoords)
 DGC = TypeVar('DGC', bound=DGCoords)
@@ -89,17 +85,3 @@ def area(queue: Iterable[GC],
         cs = chainmap(lambda c: direction(c, guard), queue)
         qs = yield from unique(cs, exclude)
         yield from area(qs, direction, depth-1, exclude | qs, guard)
-
-def chainmap(f: Callable[[A], Iterable[B]], xs: Iterable[A]) -> Iterator[B]:
-    
-    return chain.from_iterable(map(f, xs))
-
-def unique(xs: Iterable[A],
-           exclude: Set[A] = frozenset()) -> Generator[A, None, set[A]]:
-    
-    seen: set[A] = set()
-    for x in xs:
-        if (x not in exclude) and (x not in seen):
-            seen.add(x)
-            yield x
-    return seen

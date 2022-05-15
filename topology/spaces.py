@@ -4,10 +4,10 @@ from typing import Optional
 
 from itertools import combinations, product, chain
 
-from ..core.core import chainmap
+from ..core.itertools import chainmap, splits
 
 from .coords import ECoord, NCoord, ESpace, NSpace
-from .graphs import connections, connection_list, degree, degree_list
+from .graphs import ne_connections, ne_list, degree, degree_list
 
 E = Hashable
 N = Hashable
@@ -39,10 +39,10 @@ def make_e_space(e_list: EList,
     if len(below_min) > 0:
         raise ValueError(f'minimum degree not satisfied at {below_min}')
     
-    c_list = connection_list(a_list)
+    ne = ne_list(a_list)
     exclude = set(exclude)
     
-    at_min = {e for n in c_list for e in c_list[n] if d_list[n] == min_deg}
+    at_min = {e for n in ne for e in ne[n] if d_list[n] == min_deg}
     exclude.update(at_min)
     
     return ESpace(e for e in e_list if not e in exclude)
@@ -64,39 +64,23 @@ def make_n_space(n_list: NList,
 
 def node_splits(node: N,
                 e_list: EList,
-                adjacent: Adjacent,
+                a_list: AList,
                 min_deg: int = 2,
                 max_splits: int = 2) -> Iterator[NSplit]:
     
-    deg = degree(adjacent)
+    deg = degree(a_list, node)
     
     if deg < min_deg:
         raise ValueError(f'minimum degree not satisfied at {node}')
     
     e_list = frozenset(e_list)
     
-    e_connect = e_list & frozenset(connections(adjacent))
+    e_connect = e_list & frozenset(ne_connections(a_list, node))
     
     if len(e_connect) < min_deg:
         return iter([])
     
     return iter([])
-
-# Have fun with this one
-
-def split(es: frozenset[E],
-          min_deg: int,
-          max_splits: int) -> Iterable[Split]:
-    """All possible ways to divide elements into distinguishable splits."""
-    
-    if (len(es) >= 2 * min_deg) and (max_splits > 1):
-        comb = lambda r: (frozenset(c) for c in combinations(es, r))
-        take = tuple(chainmap(comb, range(min_deg, len(es) - min_deg + 1)))
-        rest = (split(es - t, min_deg, max_splits - 1) for t in take)
-        prod = (product([t], r) for t, r in zip(take, rest))
-        return ((t, *r) for p in prod for t, r in p)
-    else:
-        return tuple([tuple([es])])
 
 def make_root():
     pass
