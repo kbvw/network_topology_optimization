@@ -5,9 +5,6 @@ from itertools import chain
 E = Hashable
 N = Hashable
 
-EList = Iterable[E]
-NList = Iterable[N]
-
 ENConnections = Iterable[N]
 NEConnections = Iterable[E]
 
@@ -30,7 +27,7 @@ def en_connections(a_list: AList, e: E) -> set[N]:
     
     return set(n for n in a_list if e in ne_connections(a_list, n))
 
-def en_list(a_list: AList) -> dict[E, set[N]]:
+def en_connection_list(a_list: AList) -> dict[E, set[N]]:
     """Nodes connected to each element in the adjacency list."""
     
     return {e: set(en_connections(a_list, e)) for e in e_list(a_list)}
@@ -45,7 +42,7 @@ def ne_connections(a_list: AList, n: N) -> set[E]:
     
     return set(chain.from_iterable(a_list[n].values()))
 
-def ne_list(a_list: AList) -> dict[N, set[E]]:
+def ne_connection_list(a_list: AList) -> dict[N, set[E]]:
     """Elements connected to each node in the adjacency list."""
     
     return {n: set(ne_connections(a_list, n)) for n in n_list(a_list)}
