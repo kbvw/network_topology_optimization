@@ -1,36 +1,61 @@
-from collections.abc import Hashable, Iterable, Iterator, Mapping
+from collections.abc import Hashable, Iterable, Mapping
 
 from itertools import chain
-
-from ..core.core import unique
 
 E = Hashable
 N = Hashable
 
+EList = Iterable[E]
+NList = Iterable[N]
+
+ENConnections = Iterable[N]
+NEConnections = Iterable[E]
+
+ENList = Mapping[E, ENConnections]
+NEList = Mapping[N, NEConnections]
+
 Adjacent = Mapping[N, Iterable[E]]
-Connections = Iterable[E]
 Degree = int
 
 AList = Mapping[N, Adjacent]
-CList = Mapping[N, Connections]
 DList = Mapping[N, Degree]
 
-def connections(adjacent: Adjacent) -> Iterator[E]:
-    """Unique elements connecting node to adjacent nodes."""
+def e_list(a_list: AList) -> set[E]:
+    """Unique elements in adjacency list."""
     
-    return unique(chain.from_iterable(adjacent.values()))
+    return set(e for n in a_list for e in a_list[n])
 
-def connection_list(a_list: AList) -> dict[N, set[E]]:
-    """Unique elements connected to each node."""
+def en_connections(a_list: AList, e: E) -> set[N]:
+    """Nodes connected to element e in the adjacency list."""
     
-    return {n: set(connections(a_list[n])) for n in a_list.keys()}
+    return set(n for n in a_list if e in ne_connections(a_list, n))
 
-def degree(adjacent: Adjacent) -> int:
-    """Number of unique elements connecting node to adjacent nodes."""
+def en_list(a_list: AList) -> dict[E, set[N]]:
+    """Nodes connected to each element in the adjacency list."""
     
-    return len(tuple(connections(adjacent)))
+    return {e: set(en_connections(a_list, e)) for e in e_list(a_list)}
+
+def n_list(a_list: AList) -> set[N]:
+    """Unique nodes in adjacency list."""
+    
+    return set(a_list.keys())
+
+def ne_connections(a_list: AList, n: N) -> set[E]:
+    """Elements connected to node n in the adjacency list."""
+    
+    return set(chain.from_iterable(a_list[n].values()))
+
+def ne_list(a_list: AList) -> dict[N, set[E]]:
+    """Elements connected to each node in the adjacency list."""
+    
+    return {n: set(ne_connections(a_list, n)) for n in n_list(a_list)}
+
+def degree(a_list: AList, n: N) -> int:
+    """Number of elements connected to node n in the adjacency list."""
+    
+    return len(tuple(ne_connections(a_list, n)))
 
 def degree_list(a_list: AList) -> DList:
-    """Number of unique elements connected to each node."""
+    """Number of elements connected to each node in the adjacency list."""
     
-    return {n: degree(neighbors) for n, neighbors in a_list.items()}
+    return {n: degree(a_list, n) for n in a_list}
