@@ -28,22 +28,24 @@ def unique(xs: Iterable[A],
 
 def splits(xs: Set[A],
            min_size: int,
-           max_splits: int) -> Iterator[Split[A]]:
+           max_splits: int,
+           fix: Set[A] = frozenset()) -> Iterator[Split[A]]:
     """All possible ordered splits of xs into disjoint subsets."""
     
-    if (len(xs) >= 2 * min_size) and (max_splits > 1):
+    if (len(xs | fix) >= 2 * min_size) and (max_splits > 1):
         
-        sizes = range(min_size, len(xs) - min_size + 1)
-        yss = (frozenset(c) for n in sizes for c in combinations(xs, n))
+        sizes = range(max(0, min_size - len(fix)), len(xs) - min_size + 1)
+        yss = (frozenset(c) | fix for n in sizes
+               for c in combinations(xs, n))
         
-        prod = (product([ys], splits(xs - ys, min_size, max_splits - 1))
-                for ys in yss)
+        ps = (product([ys], splits(xs - ys, min_size, max_splits - 1))
+              for ys in yss)
         
-        yield from ((split, *subsplits) for p in prod 
+        yield from ((split, *subsplits) for p in ps 
                     for split, subsplits in p)
     
     else:
-        yield tuple([frozenset(xs)])
+        yield tuple([frozenset(xs) | fix])
 
 def distribute(ys: Iterable[A], 
                xsss: Iterable[Split[A]]) -> Iterator[Split[A]]:
