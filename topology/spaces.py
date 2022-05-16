@@ -3,7 +3,7 @@ from collections.abc import (Hashable, Iterable, Iterator,
 
 from itertools import repeat
 
-from ..core.itertools import splits, unique
+from ..core.itertools import splits, unique, distribute
 
 from .coords import ESpace, NSpace, ECoord, NCoord, Topology
 from .coords import TopoTuple, EC, EP, NC, NP
@@ -76,18 +76,20 @@ def node_splits(node: N,
     if deg < min_deg:
         raise ValueError(f'minimum degree not satisfied at {node}')
     
-    e_list = frozenset(e_list)
+    e_list = set(e_list)
+    e_connect = set(ne_connections(a_list, node))
     
-    e_connect = e_list & frozenset(ne_connections(a_list, node))
+    ec_flex = e_list & e_connect
+    ec_fix = e_connect - e_list
+    e_other = e_list - e_connect
     
-    n_splits = splits(e_connect, min_deg, max_splits)
-    
-    # Rest of e_list? Rest of e not in e_list or a_list? Force ordered?
+    base_splits = splits(ec_flex, min_deg, max_splits, ec_fix)
+    full_splits = distribute(e_other, base_splits)
     
     if ordered:
-        return ((node, tuple(s)) for s in n_splits)
+        return ((node, tuple(s)) for s in full_splits)
     else:
-        return unique((node, frozenset(s)) for s in n_splits)
+        return unique((node, frozenset(s)) for s in full_splits)
 
 def make_root(es: ESpace, ns: NSpace) -> Topology:
     """Root of coordinate system defined by e-space and n-space."""
