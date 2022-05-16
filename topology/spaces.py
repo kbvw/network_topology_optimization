@@ -1,6 +1,8 @@
 from collections.abc import (Hashable, Iterable, Iterator,
                              Mapping, Set, Collection)
 
+from itertools import repeat
+
 from ..core.itertools import splits, unique
 
 from .coords import ESpace, NSpace, ECoord, NCoord, Topology
@@ -55,11 +57,11 @@ def make_n_space(n_list: NList,
     if len(below_min) > 0:
         raise ValueError(f'minimum degree not satisfied at {below_min}')
     
-    if not isinstance(max_splits, Iterable):
-        max_splits = (max_splits for n in n_list)
+    if isinstance(max_splits, int):
+        max_splits = repeat(max_splits)
     
     return NSpace({n: frozenset(node_splits(n, n_list[n], a_list, min_deg, s))
-                   for n, s in zip(n_list.items(), max_splits)})
+                   for n, s in zip(n_list, max_splits)})
 
 def node_splits(node: N,
                 e_list: Iterable[E],
@@ -74,7 +76,7 @@ def node_splits(node: N,
     if deg < min_deg:
         raise ValueError(f'minimum degree not satisfied at {node}')
     
-    e_list = frozenset(e_list)
+    e_list = frozenset(iter(e_list))
     
     e_connect = e_list & frozenset(ne_connections(a_list, node))
     
