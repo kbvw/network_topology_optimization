@@ -76,7 +76,7 @@ def node_splits(node: N,
     if deg < min_deg:
         raise ValueError(f'minimum degree not satisfied at {node}')
     
-    e_list = frozenset(iter(e_list))
+    e_list = frozenset(e_list)
     
     e_connect = e_list & frozenset(ne_connections(a_list, node))
     
