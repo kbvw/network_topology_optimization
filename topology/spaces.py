@@ -6,7 +6,8 @@ from itertools import repeat
 from ..core.itertools import splits, unique, distribute
 
 from .coords import ESpace, NSpace, ECoord, NCoord, Topology
-from .coords import TopoTuple, EC, EP, NC, NP
+from .coords import (TopoTuple, ECSimple, EPSimple, NCSimple,
+                     ECCoupled, EPCoupled, NCCoupled, NP)
 
 from .graphs import ne_connections, ne_connection_list, degree, degree_list
 
@@ -20,7 +21,7 @@ AList = Mapping[N, Mapping[N, Iterable[E]]]
 EList = Iterable[E]
 NList = Mapping[N, Iterable[E]]
 
-Split = Collection[frozenset[E]]
+Split = tuple[frozenset[E], ...] | frozenset[frozenset[E]]
 NSplit = tuple[N, Split]
 
 def make_e_space(e_list: EList,
@@ -94,7 +95,7 @@ def node_splits(node: N,
 def make_root(es: ESpace, ns: NSpace) -> Topology:
     """Root of coordinate system defined by e-space and n-space."""
     
-    class Coords(TopoTuple, EC, EP, NC, NP):
+    class Coords(TopoTuple, ECSimple, EPSimple, NCSimple, NP):
         e_space = es
         n_space = ns
     

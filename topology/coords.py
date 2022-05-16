@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterable, Iterator, Hashable, Collection
+from collections.abc import Iterable, Iterator, Hashable, Set
 from typing import TypeVar, Type
 
-from itertools import product, chain
+from itertools import product, chain, repeat
+from functools import reduce
 
+from ..core.itertools import chainmap
 from .abc import TopoData
 from ..core.collections import NamedFrozenSet, NamedFrozenDict
 
@@ -13,7 +15,7 @@ from ..core.collections import NamedFrozenSet, NamedFrozenDict
 
 E = Hashable
 N = Hashable
-Split = Collection[frozenset[E]]
+Split = tuple[frozenset[E], ...] | frozenset[frozenset[E]]
 NSplit = tuple[N, Split]
 
 class ECoord(NamedFrozenSet[E]):
@@ -101,7 +103,7 @@ class TopoTuple(tuple[ECoord, NCoord], Topology):
         
         return f'{name}({super().__repr__()})'
 
-class EC(Topology):
+class ECSimple(Topology):
     
     __slots__ = ()
     
@@ -115,7 +117,7 @@ class EC(Topology):
         
         return self.factory(e_coords, [self.n_coord])
 
-class EP(Topology):
+class EPSimple(Topology):
     
     __slots__ = ()
     
@@ -127,7 +129,7 @@ class EP(Topology):
         
         return self.factory(e_coords, [self.n_coord])
 
-class NC(Topology):
+class NCSimple(Topology):
     
     __slots__ = ()
     
@@ -136,6 +138,56 @@ class NC(Topology):
         
         unsplit = (n for n in self.n_space if n not in self.n_coord)
         splits = chain(split for n in unsplit 
+                       for split in self.n_space[n])
+        
+        n_coords = (NCoord(self.n_coord | {split[0]: split}) 
+                    for split in splits)
+        
+        return self.factory([self.e_coord], n_coords)
+
+class ECCoupled(Topology):
+    
+    __slots__ = ()
+    
+    def e_children(self: Topo) -> Iterator[Topo]:
+        """Return iterable containing children in the edge dimension."""
+        
+        unswitched = (e for e in self.e_space if e not in self.e_coord)
+        
+        e_coords = (ECoord(self.e_coord | {switch})
+                    for switch in unswitched)
+        
+        en = ((e, n_filter(self.n_coord, e)) for e in e_coords)
+        f = lambda en: self.factory([en[0]], [en[1]])
+        
+        return chainmap(f, en)
+
+class EPCoupled(Topology):
+    
+    __slots__ = ()
+    
+    def e_parents(self: Topo) -> Iterator[Topo]:
+        """Return iterable containing parents in the edge dimension."""
+        
+        en_coords = ((ECoord(e for e in self.e_coord if not e == switch),
+                      n_branch(self.n_coord, self.n_space, switch))
+                     for switch in self.e_coord)
+        
+        en = (zip(repeat(cs[0]), cs[1]) for cs in en_coords)
+        
+        f = lambda en: self.factory([en[0]], [en[1]])
+        
+        return chainmap(f, en)
+
+class NCCoupled(Topology):
+    
+    __slots__ = ()
+    
+    def n_children(self: Topo) -> Iterator[Topo]:
+        """Return iterable containing children in the node dimension."""
+        
+        unsplit = (n for n in self.n_space if n not in self.n_coord)
+        splits = chain(split_filter(split, self.e_coord) for n in unsplit 
                        for split in self.n_space[n])
         
         n_coords = (NCoord(self.n_coord | {split[0]: split}) 
@@ -156,3 +208,24 @@ class NP(Topology):
                     for split in self.n_coord)
         
         return self.factory([self.e_coord], n_coords)
+
+def split_filter(split: NSplit, switches: Set[E]) -> NSplit:
+    """Remove switched elements from node split."""
+    
+    n, ess = split
+    filtered = type(ess)(frozenset(e for e in es if not e in switches)
+                         for es in ess)
+    return (n, filtered)
+
+def n_filter(n_coord: NCoord, es: Set[E]) -> NCoord:
+    """Remove switched elements from node N-coordinate."""
+    
+    return NCoord({n: split_filter(s, es) for n, s in n_coord.items()})
+
+def n_branch(n_coord: NCoord, n_space: NSpace, e: E) -> Iterable[NCoord]:
+    """Enumerate possible N-coordinates with switch added back."""
+    
+    union = lambda x, y: x | y
+    return (NCoord({n: split}) for n in n_coord for split in n_space[n]
+            if e in reduce(union, split[1]))
+
