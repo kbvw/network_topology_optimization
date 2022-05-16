@@ -89,11 +89,8 @@ def node_splits(node: N,
     else:
         return unique((node, frozenset(s)) for s in n_splits)
 
-def make_root(e_space: ESpace, n_space: NSpace) -> Topology:
+def make_root(es: ESpace, ns: NSpace) -> Topology:
     """Root of coordinate system defined by e-space and n-space."""
-    
-    es = e_space
-    ns = n_space
     
     class Coords(TopoTuple, EC, EP, NC, NP):
         e_space = es
