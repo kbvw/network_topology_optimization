@@ -25,7 +25,7 @@ SubCs = Iterator[frozenset[E]]
 def e_list(a_list: AList) -> set[E]:
     """Unique elements in adjacency list."""
     
-    return set(e for n in a_list for e in a_list[n])
+    return set(e for n in a_list for nb in a_list[n] for e in a_list[n][nb])
 
 def en_connections(a_list: AList, e: E) -> set[N]:
     """Nodes connected to element e in the adjacency list."""
