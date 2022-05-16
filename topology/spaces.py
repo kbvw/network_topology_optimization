@@ -16,7 +16,7 @@ N = Hashable
 AList = Mapping[N, Mapping[N, Iterable[E]]]
 
 EList = Iterable[E]
-NList = Iterable[tuple[N, Iterable[E]]]
+NList = Mapping[N, Iterable[E]]
 
 Split = Collection[frozenset[E]]
 NSplit = tuple[N, Split]
@@ -56,10 +56,10 @@ def make_n_space(n_list: NList,
         raise ValueError(f'minimum degree not satisfied at {below_min}')
     
     if not isinstance(max_splits, Iterable):
-        max_splits = (max_splits for n in a_list)
+        max_splits = (max_splits for n in n_list)
     
-    return NSpace({n: frozenset(node_splits(n[0], n[1], a_list, min_deg, s))
-                   for n, s in zip(n_list, max_splits)})
+    return NSpace({n: frozenset(node_splits(n, n_list[n], a_list, min_deg, s))
+                   for n, s in zip(n_list.items(), max_splits)})
 
 def node_splits(node: N,
                 e_list: Iterable[E],
