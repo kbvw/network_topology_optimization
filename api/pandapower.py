@@ -1,5 +1,7 @@
 from collections.abc import Hashable
 
+from itertools import chain
+
 E = Hashable
 N = Hashable
 
@@ -10,7 +12,7 @@ NList = dict[N, list[E]]
 
 def infer_a_list(net, 
                  edge_elements=('line', 'trafo')) -> AList:
-
+    
     a_list: AList = {}
     
     for n in net['bus'].index:
@@ -27,14 +29,14 @@ def infer_a_list(net,
 
 def infer_e_list(net, 
                  edge_elements=('line', 'trafo'),
-                 other_elements=('load', 'gen', 'ext_grid')) -> EList:
+                 other_elements=()) -> EList:
     
     e_list: EList = []
     
-    for e_type in edge_elements + other_elements:
+    for e_type in chain(edge_elements, other_elements):
         for e in net[e_type].index:
             e_list.append((e_type, e))
-            
+    
     return e_list
 
 def infer_n_list(net, 
@@ -52,10 +54,10 @@ def infer_n_list(net,
             t = net[e_type]['to_bus'][e]
             n_list[f].append((e_type, e))
             n_list[t].append((e_type, e))
-            
+    
     for e_type in other_elements:
         for e in net[e_type].index:
             n = net[e_type]['bus'][e]
             n_list[n].append((e_type, e))
-            
+    
     return n_list
