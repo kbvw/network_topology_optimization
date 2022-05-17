@@ -91,4 +91,4 @@ def check_k_edge_connected(coords: Topology,
     
     g = make_graph(a_list, coords, en_list=en_list, store_edge_data=False)
     
-    return nxc.is_k_edge_connected(g, k)
+    return nx.edge_connectivity(g, cutoff=k) >= k
