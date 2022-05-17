@@ -95,7 +95,7 @@ def node_splits(node: N,
 def make_root(es: ESpace, ns: NSpace) -> Topology:
     """Root of coordinate system defined by e-space and n-space."""
     
-    class Coords(TopoTuple, ECSimple, EPSimple, NCSimple, NP):
+    class Coords(TopoTuple, ECCoupled, EPCoupled, NCCoupled, NP):
         e_space = es
         n_space = ns
     

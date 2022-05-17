@@ -137,8 +137,7 @@ class NCSimple(Topology):
         """Return iterable containing children in the node dimension."""
         
         unsplit = (n for n in self.n_space if n not in self.n_coord)
-        splits = chain(split for n in unsplit 
-                       for split in self.n_space[n])
+        splits = (split for n in unsplit for split in self.n_space[n])
         
         n_coords = (NCoord(self.n_coord | {split[0]: split}) 
                     for split in splits)
@@ -157,7 +156,7 @@ class ECCoupled(Topology):
         e_coords = (ECoord(self.e_coord | {switch})
                     for switch in unswitched)
         
-        en = ((e, n_filter(self.n_coord, e)) for e in e_coords)
+        en = ((e, e_remove(self.n_coord, e)) for e in e_coords)
         f = lambda en: self.factory([en[0]], [en[1]])
         
         return chainmap(f, en)
@@ -170,14 +169,15 @@ class EPCoupled(Topology):
         """Return iterable containing parents in the edge dimension."""
         
         en_coords = ((ECoord(e for e in self.e_coord if not e == switch),
-                      n_branch(self.n_coord, self.n_space, switch))
+                      e_add(self.n_coord, self.n_space, switch))
                      for switch in self.e_coord)
         
-        en = (zip(repeat(cs[0]), cs[1]) for cs in en_coords)
+        zipped = (zip(repeat(cs[0]), cs[1]) for cs in en_coords)
+        ens = chain.from_iterable(zipped)
         
         f = lambda en: self.factory([en[0]], [en[1]])
         
-        return chainmap(f, en)
+        return chainmap(f, ens)
 
 class NCCoupled(Topology):
     
@@ -187,11 +187,12 @@ class NCCoupled(Topology):
         """Return iterable containing children in the node dimension."""
         
         unsplit = (n for n in self.n_space if n not in self.n_coord)
-        splits = chain(split_filter(split, self.e_coord) for n in unsplit 
-                       for split in self.n_space[n])
+        splits = (split for n in unsplit for split in self.n_space[n])
+        cleaned = (split_clean(s, self.e_coord) for s in splits)
+        filtered = filter(split_filter, cleaned)
         
         n_coords = (NCoord(self.n_coord | {split[0]: split}) 
-                    for split in splits)
+                    for split in filtered)
         
         return self.factory([self.e_coord], n_coords)
 
@@ -209,7 +210,7 @@ class NP(Topology):
         
         return self.factory([self.e_coord], n_coords)
 
-def split_filter(split: NSplit, switches: Set[E]) -> NSplit:
+def split_clean(split: NSplit, switches: Set[E]) -> NSplit:
     """Remove switched elements from node split."""
     
     n, ess = split
@@ -217,15 +218,21 @@ def split_filter(split: NSplit, switches: Set[E]) -> NSplit:
                          for es in ess)
     return (n, filtered)
 
-def n_filter(n_coord: NCoord, es: Set[E]) -> NCoord:
+def split_filter(split: NSplit) -> bool:
+    """True if node is split into two or more subnodes."""
+    
+    return (len(split[1]) > 1)
+
+def e_remove(n_coord: NCoord, es: Set[E]) -> NCoord:
     """Remove switched elements from node N-coordinate."""
     
-    return NCoord({n: split_filter(s, es) for n, s in n_coord.items()})
+    cleaned = (split_clean(s, es) for s in n_coord.values())
+    filtered = filter(split_filter, cleaned)
+    return NCoord({split[0]: split for split in filtered})
 
-def n_branch(n_coord: NCoord, n_space: NSpace, e: E) -> Iterable[NCoord]:
+def e_add(n_coord: NCoord, n_space: NSpace, e: E) -> Iterable[NCoord]:
     """Enumerate possible N-coordinates with switch added back."""
     
     union = lambda x, y: x | y
     return (NCoord({n: split}) for n in n_coord for split in n_space[n]
             if e in reduce(union, split[1]))
-
