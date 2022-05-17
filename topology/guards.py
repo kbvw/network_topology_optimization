@@ -37,7 +37,7 @@ def degree_guard(a_list: AList,
     
     if len(below_min) > 0:
         raise ValueError(f'minimum degree not satisfied at {below_min}')
-        
+    
     en_list = en_connection_list(a_list)
     
     def degree_guard(coords: Topology) -> bool:
