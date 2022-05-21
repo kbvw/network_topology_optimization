@@ -1,10 +1,13 @@
 import numpy as np
 
-from collections.abc import Hashable, Iterable, Mapping, Sequence
+from collections.abc import Hashable, Iterable, Mapping, Sequence, Set
 from typing import NamedTuple
 from numpy.typing import NDArray
 
+from itertools import product
+
 from ..topology.coords import Topology
+from ..topology.graphs import topology_a_list
 
 C = Hashable
 N = Hashable
@@ -13,9 +16,13 @@ L = Hashable
 G = Hashable
 
 AList = Mapping[N, Mapping[N, Iterable[C]]]
+NEList = Mapping[N, Iterable[L | G]]
 YList = Mapping[C, complex]
-LoadList = Mapping[L, N]
-GenList = Mapping[G, N]
+
+class Grid(NamedTuple):
+    a_list: AList
+    ne_list: NEList
+    y_list: YList
 
 PList = Mapping[L | G, float]
 QList = Mapping[L, float]
@@ -23,12 +30,6 @@ SlackList = Mapping[G, float]
 AngList = Mapping[N, float]
 MagList = Mapping[N, float]
 FlowList = Mapping[C, complex]
-
-class Grid(NamedTuple):
-    a_list: AList
-    y_list: YList
-    load_list: LoadList
-    gen_list: GenList
 
 class GridData(NamedTuple):
     p_list: PList
@@ -41,13 +42,17 @@ class GridRes(NamedTuple):
     mag_list: MagList
     flow_list: FlowList
 
-NIndex = Sequence[N]
-CIndex = Sequence[C]
+B = Hashable
+
+BEList = Mapping[B, Iterable[L | G]]
+BIndex = Sequence[B]
+CIndex = Sequence[Set[C]]
 
 class GridIndex(NamedTuple):
-    pv_index: NIndex
-    pq_index: NIndex
-    c_index: CIndex
+    be_list: BEList
+    pv_idx: BIndex
+    pq_idx: BIndex
+    c_idx: CIndex
 
 YMat = NDArray[np.float64]
 
@@ -76,34 +81,50 @@ def grid_index(grid: Grid,
                topo: Topology,
                grid_data: GridData) -> GridIndex:
     
-    load_list, gen_list = bus_split(grid.load_list, grid.gen_list, topo)
+    be_list = bus_split(grid.ne_list, topo)
     
-    pass
+    pv_idx, pq_idx = bus_types(be_list, grid_data)
+    
+    c_idx = connections(be_list, grid.y_list)
+    
+    return GridIndex(be_list, pv_idx, pq_idx, c_idx)
 
-def bus_split(load_list: LoadList, 
-              gen_list: GenList, 
-              topo: Topology) -> tuple[LoadList, GenList]:
+def connections(be_list: BEList, y_list: YList) -> CIndex:
     
-    splits = {e: (n, k) for n in topo.n_coord 
-              for k, es in enumerate(topo.n_coord[n][1])
-              for e in es}
+    css = ({e for e in be_list[f] if e in be_list[t]}
+           for f, t in product(be_list, be_list))
     
-    ls = {l: (splits[l] if (l in splits) else load_list[l])
-          for l in load_list}
-    gs = {g: (splits[g] if (g in splits) else gen_list[g])
-          for g in gen_list}
+    return tuple(filter(lambda cs: len(cs) > 0, css))
+
+def bus_types(be_list: BEList,
+              grid_data: GridData) -> tuple[BIndex, BIndex]:
     
-    return (ls, gs)
+    pv_idx = tuple(n for n in be_list 
+                     if any(e in grid_data.mag_list for e in be_list[n]))
+    pq_idx = tuple(n for n in be_list
+                     if all(e not in grid_data.mag_list for e in be_list[n]))
+    
+    return (pv_idx, pq_idx)
+
+def bus_split(ne_list: NEList,
+              topo: Topology) -> BEList:
+    
+    unsplit = {n: {e for e in es if e not in topo.e_coord}
+               for n, es in ne_list.items() if n not in topo.n_coord}
+    split = {(n, i): es for n in topo.n_coord 
+             for i, es in enumerate(topo.n_coord[n][1])}
+    
+    return unsplit | split
 
 def bp_mat(a_list: AList,
            y_list: YList,
-           n_index: NIndex,
+           pv_idx: BIndex,
            topo: Topology) -> YMat:
     pass
 
 def bpp_mat(a_list: AList,
             y_list: YList,
-            n_index: NIndex,
+            pq_idx: BIndex,
             topo: Topology) -> YMat:
     pass
 
