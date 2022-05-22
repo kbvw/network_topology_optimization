@@ -1,13 +1,14 @@
 import numpy as np
+from scipy.sparse import csr_matrix, hstack, vstack # type: ignore
+from scipy.sparse.linalg import splu # type: ignore
 
 from collections.abc import Hashable, Iterable, Mapping, Sequence, Set
 from typing import NamedTuple
 from numpy.typing import NDArray
 
-from itertools import product
+from itertools import product, chain
 
 from ..topology.coords import Topology
-from ..topology.graphs import topology_a_list
 
 C = Hashable
 N = Hashable
@@ -18,15 +19,16 @@ G = Hashable
 AList = Mapping[N, Mapping[N, Iterable[C]]]
 NEList = Mapping[N, Iterable[L | G]]
 YList = Mapping[C, complex]
+SlackList = Mapping[G, float]
 
 class Grid(NamedTuple):
     a_list: AList
     ne_list: NEList
     y_list: YList
+    slack_list: SlackList
 
 PList = Mapping[L | G, float]
 QList = Mapping[L, float]
-SlackList = Mapping[G, float]
 AngList = Mapping[N, float]
 MagList = Mapping[N, float]
 FlowList = Mapping[C, complex]
@@ -35,7 +37,6 @@ class GridData(NamedTuple):
     p_list: PList
     q_list: QList
     mag_list: MagList
-    slack_list: SlackList
 
 class GridRes(NamedTuple):
     ang_list: AngList
@@ -116,17 +117,46 @@ def bus_split(ne_list: NEList,
     
     return unsplit | split
 
-def bp_mat(a_list: AList,
-           y_list: YList,
-           pv_idx: BIndex,
-           topo: Topology) -> YMat:
+def pf_data(grid_data: GridData,
+            grid_idx: GridIndex) -> PFData:
     pass
 
-def bpp_mat(a_list: AList,
-            y_list: YList,
-            pq_idx: BIndex,
-            topo: Topology) -> YMat:
-    pass
+def a_mat(b_idx: BIndex, be_list: BEList, y_list: YList) -> YMat:
+    
+    cs = ((f, t, sum(y_list[e] for e in be_list[t] if e in be_list[t]))
+          for f, t in product(b_idx, b_idx))
+    
+    rows, cols, data = zip(*filter(lambda c: c[2] != 0, cs))
+    
+    return csr_matrix((data, (rows, cols)), shape=2*[len(be_list)])
+
+def laplacian(b_idx: BIndex, be_list: BEList, y_list: YList) -> YMat:
+    
+    a = a_mat(b_idx, be_list, y_list)
+    
+    return csr_matrix(a.sum(axis=0) - a)
+
+def bp_mat(pv_idx: BIndex, 
+           pq_idx: BIndex,
+           be_list: BEList, 
+           y_list: YList, 
+           slack_list: SlackList) -> YMat:
+    
+    grounded_lap = laplacian([pv_idx] + [pq_idx], be_list, y_list)[1:, 1:]
+    padded_lap = csr_matrix([np.zeros(len(pv_idx)-1), *grounded_lap])
+    slack = np.array(sum(slack_list[e] for e in be_list[b]) 
+                     for b in pv_idx)
+    
+    return np.imag(csr_matrix([slack, *padded_lap.T]).T)
+
+def bpp_mat(pv_idx: BIndex,
+            pq_idx: BIndex, 
+            be_list: BEList, 
+            y_list: YList) -> YMat:
+    
+    lap = laplacian([pv_idx] + [pq_idx], be_list, y_list)
+    
+    return np.imag(lap[len(pv_idx):, len(pv_idx):])
 
 def p(ang_vec: AngVec, mag_vec: MagVec, b_mat: YMat, g_mat: YMat) -> PVec:
     pass
