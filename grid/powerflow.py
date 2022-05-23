@@ -173,7 +173,7 @@ def laplacian(b_idx: BIndex, y_idx: YIndex) -> YMat:
 
 def slack_array(pv_idx: BIndex, s_idx: SIndex) -> NDArray[np.float64]:
     
-    slack = [(b[0], s_idx[b[1]]) for b in enumerate(pv_idx)
+    slack = [(b[0], -s_idx[b[1]]) for b in enumerate(pv_idx)
              if b[1] in s_idx]
     
     rows, data = zip(*slack)
@@ -225,7 +225,13 @@ def q(ang_vec: AngVec, mag_vec: MagVec, y_mat: YMat) -> QVec:
     
     return mag_vec*amps
 
+def ang_step(ang_vec: AngVec, mag_vec: MagVec, p_diff: PVec, bp_mat: SuperLU):
+    
+    return ang_vec - bp_mat.solve(p_diff/mag_vec)
+
+def mag_step(AngVec, mag_vec: MagVec, q_diff: QVec, bpp_mat: SuperLU):
+    
+    return mag_vec - bpp_mat.solve(q_diff/mag_vec)
+
 def fdpf(pf_data: PFData, pf_init: PFInit):
     pass
-
-
