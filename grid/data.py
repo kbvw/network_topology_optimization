@@ -1,4 +1,4 @@
-from collections.abc import Hashable
+from collections.abc import Hashable, Callable
 
 from typing import NamedTuple
 from itertools import chain
@@ -91,6 +91,7 @@ def bus_split(grid: Grid, topo: Topology) -> Grid:
     g_splits = {e: b for b, es in splits.items()
                 for e in es if e in grid.gn_list}
     
+    bs: Callable[[C], set[N]]
     bs = lambda e: ({b for b in splits if e in splits[b]}
                     | {b for b in grid.cn_list[e] if not b in topo.n_coord})
     c_splits = {e: frozenset(bs(e)) 
