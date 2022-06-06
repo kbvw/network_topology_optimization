@@ -8,6 +8,9 @@ from ..core.itertools import unique
 
 from ..topology.coords import Topology
 
+# To do:
+# - Maintain ordering in line endings: important for transformers
+
 N = Hashable
 C = Hashable
 L = Hashable
@@ -20,6 +23,8 @@ GNList = dict[G, N]
 
 Admittances = dict[C, complex]
 SlackFactors = dict[G, float]
+VoltageLevels = dict[N | C, float]
+PowerBase = float
 
 class Grid(NamedTuple):
     cn_list: CNList
@@ -29,6 +34,8 @@ class Grid(NamedTuple):
 class GridParams(NamedTuple):
     y_list: Admittances
     s_list: SlackFactors
+    v_list: VoltageLevels
+    p_base: PowerBase
 
 BIndex = tuple[B, ...]
 SIndex = dict[B, float]
@@ -56,10 +63,13 @@ def slack_factors(grid: Grid, grid_params: GridParams) -> SIndex:
 
 def admittances(grid: Grid, grid_params: GridParams) -> YIndex:
     
+    pu_y_list = {c: y*grid_params.p_base/(grid_params.v_list[c]**2)
+                 for c, y in grid_params.y_list.items()}
+    
     bps: dict[frozenset[B], float]
     bps = {bp: 0. for bp in unique(grid.cn_list.values())}
     
-    r = lambda bps, bp: bps | {bps[bp[0]] + grid_params.y_list[bp[1]]}
+    r = lambda bps, bp: bps | {bps[bp[0]] + pu_y_list[bp[1]]}
     return reduce(r, grid.cn_list.items(), bps)
 
 def bus_types(grid: Grid, grid_params: GridParams) -> tuple[BIndex, BIndex]:
@@ -83,7 +93,7 @@ def bus_split(grid: Grid, topo: Topology) -> Grid:
     bs: Callable[[C], set[N]]
     bs = lambda e: ({b for b in splits if e in splits[b]}
                     | {b for b in grid.cn_list[e] if not b in topo.n_coord})
-    c_splits = {e: frozenset(bs(e)) 
+    c_splits = {e: frozenset(bs(e))
                 for e in chain.from_iterable(splits.values())
                 if e in grid.cn_list}
     
