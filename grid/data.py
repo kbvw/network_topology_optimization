@@ -30,26 +30,15 @@ class GridParams(NamedTuple):
     y_list: Admittances
     s_list: SlackFactors
 
-# class BusSplit(NamedTuple):
-#     cb_list: dict[C, frozenset[B]]
-#     lb_list: dict[L, B]
-#     gb_list: dict[G, B]
-
 BIndex = tuple[B, ...]
 SIndex = dict[B, float]
 YIndex = dict[frozenset[B], float]
 
-class GridIndex(NamedTuple):
-    pv_idx: tuple[B, ...]
-    pq_idx: tuple[B, ...]
-    s_idx: dict[B, float]
-    y_idx: dict[frozenset[B], float]
-
 class PFIndex(NamedTuple):
-    pv_idx: tuple[B, ...]
-    pq_idx: tuple[B, ...]
-    s_idx: dict[B, float]
-    y_idx: dict[frozenset[B], float]
+    pv_idx: BIndex
+    pq_idx: BIndex
+    s_idx: SIndex
+    y_idx: YIndex
 
 def apply_topology(grid: Grid, topo: Topology) -> Grid:
     pass

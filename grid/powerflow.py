@@ -10,7 +10,10 @@ from numpy.typing import NDArray
 from itertools import product
 
 from ..topology.coords import Topology
-from .data import Grid, GridIndex
+from .data import Grid, PFIndex
+
+# To do:
+# - Per-unit scaling
 
 N = Hashable
 C = Hashable
@@ -59,14 +62,14 @@ class PFData(NamedTuple):
 
 def initialize(grid: Grid,
                topo: Topology,
-               grid_data: GridData) -> tuple[GridIndex, PFData]:
+               grid_data: GridData) -> tuple[PFIndex, PFData]:
     pass
 
 def pf_data(grid_data: GridData,
-            grid_idx: GridIndex) -> PFData:
+            grid_idx: PFIndex) -> PFData:
     pass
 
-def pf_init(grid: Grid, grid_idx: GridIndex) -> PFInit:
+def pf_init(grid: Grid, grid_idx: PFIndex) -> PFInit:
     
     y = laplacian(grid_idx.pv_idx + grid_idx.pq_idx, grid_idx.y_idx)
     
@@ -104,7 +107,7 @@ def slack_array(pv_idx: BIndex, s_idx: SIndex) -> NDArray[np.float64]:
     
     return csr_array((data, (rows, cols)), shape=[len(slack), 1])
 
-def bp_mat(grid_idx: GridIndex) -> YMat:
+def bp_mat(grid_idx: PFIndex) -> YMat:
     
     lap = laplacian(grid_idx.pv_idx + grid_idx.pq_idx, grid_idx.y_idx)
     
@@ -112,7 +115,7 @@ def bp_mat(grid_idx: GridIndex) -> YMat:
     
     return csr_array(hstack([slack, np.imag(lap[:, 1:])]))
 
-def bpp_mat(grid_idx: GridIndex) -> YMat:
+def bpp_mat(grid_idx: PFIndex) -> YMat:
     
     lap = laplacian(grid_idx.pv_idx + grid_idx.pq_idx, grid_idx.y_idx)
     
