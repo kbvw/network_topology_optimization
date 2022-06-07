@@ -10,10 +10,12 @@ from numpy.typing import NDArray
 from itertools import product
 
 from ..topology.coords import Topology
-from .data import Grid, PFIndex
+from .data import Grid, GridParams, PFIndex
 
 # To do:
 # - Per-unit scaling
+# - Computation of Q only for PQ buses
+# - Flat start initialization
 
 N = Hashable
 C = Hashable
@@ -66,6 +68,7 @@ def initialize(grid: Grid,
     pass
 
 def pf_data(grid_data: GridData,
+            grid_params: GridParams,
             grid_idx: PFIndex) -> PFData:
     pass
 

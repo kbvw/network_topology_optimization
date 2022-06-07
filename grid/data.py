@@ -9,7 +9,7 @@ from ..core.itertools import unique
 from ..topology.coords import Topology
 
 # To do:
-# - Maintain ordering in line endings: important for transformers
+# PV or PQ bus classification in case of both load and generator
 
 N = Hashable
 C = Hashable
@@ -54,6 +54,7 @@ def pf_index(grid: Grid, grid_params: GridParams) -> PFIndex:
     pass
 
 def slack_factors(grid: Grid, grid_params: GridParams) -> SIndex:
+    """Mapping from buses to sums of slack participation factors."""
     
     bs: dict[B, float]
     bs = {b: 0. for b in unique(grid.gn_list.values())}
@@ -62,6 +63,7 @@ def slack_factors(grid: Grid, grid_params: GridParams) -> SIndex:
     return reduce(r, grid.gn_list.items(), bs)
 
 def admittances(grid: Grid, grid_params: GridParams) -> YIndex:
+    """Mapping from connections to sums of parallel admittances."""
     
     pu_y_list = {c: y*grid_params.p_base/(grid_params.v_list[c]**2)
                  for c, y in grid_params.y_list.items()}
@@ -74,12 +76,16 @@ def admittances(grid: Grid, grid_params: GridParams) -> YIndex:
 
 def bus_types(grid: Grid, grid_params: GridParams) -> tuple[BIndex, BIndex]:
     
+    # To do:
+    # - Handle case of multiple loads or generators on the same bus
+    
     pv_idx = tuple(unique(n for n in grid.gn_list))
     pq_idx = tuple(unique(n for n in grid.ln_list))
     
     return (pv_idx, pq_idx)
 
 def bus_split(grid: Grid, topo: Topology) -> Grid:
+    """Apply topology to a grid, redefining nodes and removing edges."""
     
     splits = {(n, i): [e for e in es if not e in topo.e_coord]
               for n in topo.n_coord
