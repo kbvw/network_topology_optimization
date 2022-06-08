@@ -47,11 +47,15 @@ class PFIndex(NamedTuple):
     s_idx: SIndex
     y_idx: YIndex
 
-def apply_topology(grid: Grid, topo: Topology) -> Grid:
-    pass
-
 def pf_index(grid: Grid, grid_params: GridParams) -> PFIndex:
-    pass
+    """Ordered buses and mappings to admittances and slack factors."""
+    
+    pv_idx = pv_buses(grid, grid_params)
+    pq_idx = pq_buses(grid, grid_params)
+    s_idx = slack_factors(grid, grid_params)
+    y_idx = admittances(grid, grid_params)
+    
+    return PFIndex(pv_idx, pq_idx, s_idx, y_idx)
 
 def slack_factors(grid: Grid, grid_params: GridParams) -> SIndex:
     """Mapping from buses to sums of slack participation factors."""
@@ -74,17 +78,18 @@ def admittances(grid: Grid, grid_params: GridParams) -> YIndex:
     r = lambda bps, bp: bps | {bps[bp[0]] + pu_y_list[bp[1]]}
     return reduce(r, grid.cn_list.items(), bps)
 
-def bus_types(grid: Grid, grid_params: GridParams) -> tuple[BIndex, BIndex]:
+def pv_buses(grid: Grid, grid_params: GridParams) -> BIndex:
+    """Tuple of buses with at least one generator."""
     
-    # To do:
-    # - Handle case of multiple loads or generators on the same bus
-    
-    pv_idx = tuple(unique(n for n in grid.gn_list))
-    pq_idx = tuple(unique(n for n in grid.ln_list))
-    
-    return (pv_idx, pq_idx)
+    return tuple(unique(grid.gn_list.values()))
 
-def bus_split(grid: Grid, topo: Topology) -> Grid:
+def pq_buses(grid: Grid, grid_params: GridParams) -> BIndex:
+    """Tuple of buses without any generator."""
+    
+    return tuple(unique(chain.from_iterable(grid.cn_list.values()),
+                        exclude=set(grid.gn_list.values())))
+
+def apply_topology(grid: Grid, topo: Topology) -> Grid:
     """Apply topology to a grid, redefining nodes and removing edges."""
     
     splits = {(n, i): [e for e in es if not e in topo.e_coord]
