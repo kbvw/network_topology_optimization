@@ -4,7 +4,7 @@ from scipy.sparse import coo_array, csr_array, hstack # type: ignore
 from scipy.sparse.linalg import splu, SuperLU # type: ignore
 
 from collections.abc import Hashable, Mapping
-from typing import NamedTuple
+from typing import NamedTuple, Optional
 from numpy.typing import NDArray
 
 from itertools import product
@@ -44,6 +44,7 @@ class GridRes(NamedTuple):
     flow_list: FlowList
 
 YMat = NDArray[np.complex64]
+SArray = NDArray[np.float64]
 
 PVec = NDArray[np.float64]
 QVec = NDArray[np.float64]
@@ -51,16 +52,20 @@ QVec = NDArray[np.float64]
 AngVec = NDArray[np.float64]
 MagVec = NDArray[np.float64]
 
+Slack = np.float64
+
 class PFInit(NamedTuple):
     y_mat: YMat
     bp_mat: SuperLU
     bpp_mat: SuperLU
+    s_array: SArray
 
 class PFData(NamedTuple):
     p_vec: PVec
     q_vec: QVec
     ang_vec: AngVec
     mag_vec: MagVec
+    p_slack: Slack
 
 def initialize(grid: Grid,
                topo: Topology,
@@ -69,18 +74,22 @@ def initialize(grid: Grid,
 
 def pf_data(grid_data: GridData,
             grid_params: GridParams,
-            grid_idx: PFIndex) -> PFData:
+            grid_idx: PFIndex,
+            start_profile: Optional[PFData] = None) -> PFData:
+    
     pass
 
 def pf_init(grid: Grid, grid_idx: PFIndex) -> PFInit:
     
     y = laplacian(grid_idx.pv_idx + grid_idx.pq_idx, grid_idx.y_idx)
     
-    bp = bp_mat(grid_idx)
+    s = slack_array(grid_idx.pv_idx, grid_idx.s_idx)
     
-    bpp = bpp_mat(grid_idx)
+    bp = bp_mat(grid_idx.pv_idx, grid_idx.pq_idx, grid_idx.y_idx, s)
     
-    return PFInit(y_mat=y, bp_mat=splu(bp), bpp_mat=splu(bpp))
+    bpp = bpp_mat(grid_idx.pv_idx, grid_idx.pq_idx, grid_idx.y_idx)
+    
+    return PFInit(y_mat=y, bp_mat=splu(bp), bpp_mat=splu(bpp), s_array=s)
 
 def a_mat(b_idx: BIndex, y_idx: YIndex) -> YMat:
     
@@ -110,19 +119,22 @@ def slack_array(pv_idx: BIndex, s_idx: SIndex) -> NDArray[np.float64]:
     
     return csr_array((data, (rows, cols)), shape=[len(slack), 1])
 
-def bp_mat(grid_idx: PFIndex) -> YMat:
+def bp_mat(pv_idx: BIndex,
+           pq_idx: BIndex,
+           y_idx: YIndex,
+           s_array: SArray) -> YMat:
     
-    lap = laplacian(grid_idx.pv_idx + grid_idx.pq_idx, grid_idx.y_idx)
+    lap = laplacian(pv_idx + pq_idx, y_idx)
     
-    slack = slack_array(grid_idx.pv_idx, grid_idx.s_idx)
-    
-    return csr_array(hstack([slack, np.imag(lap[:, 1:])]))
+    return csr_array(hstack([s_array, np.imag(lap[:, 1:])]))
 
-def bpp_mat(grid_idx: PFIndex) -> YMat:
+def bpp_mat(pv_idx: BIndex,
+            pq_idx: BIndex,
+            y_idx: YIndex) -> YMat:
     
-    lap = laplacian(grid_idx.pv_idx + grid_idx.pq_idx, grid_idx.y_idx)
+    lap = laplacian(pv_idx + pq_idx, y_idx)
     
-    pq_start = len(grid_idx.pv_idx)
+    pq_start = len(pv_idx)
     
     return np.imag(lap[pq_start:, pq_start:])
 
@@ -154,13 +166,39 @@ def q(ang_vec: AngVec, mag_vec: MagVec, y_mat: YMat) -> QVec:
     
     return mag_vec*amps
 
-def ang_step(ang_vec: AngVec, mag_vec: MagVec, p_diff: PVec, bp_mat: SuperLU):
+def ang_step(pf_data: PFData, pf_init: PFInit) -> tuple[AngVec, Slack]:
     
-    return ang_vec - bp_mat.solve(p_diff/mag_vec)
-
-def mag_step(AngVec, mag_vec: MagVec, q_diff: QVec, bpp_mat: SuperLU):
+    p_diff = (pf_data.p_vec + pf_init.s_array*pf_data.p_slack
+              - p(pf_data.ang_vec, pf_data.mag_vec, pf_init.y_mat))
     
-    return mag_vec - bpp_mat.solve(q_diff/mag_vec)
+    step = pf_init.bp_mat.solve(p_diff/pf_data.mag_vec)
+    
+    ang_new: AngVec
+    ang_new = pf_data.ang_vec + np.concatenate(([0], step[1:]))
+    
+    slack_new: Slack
+    slack_new = step[0]
+    
+    return ang_new, slack_new
 
-def fdpf(pf_data: PFData, pf_init: PFInit):
+def mag_step(pf_data: PFData, pf_init: PFInit) -> tuple[MagVec, QVec]:
+    
+    q_current = q(pf_data.ang_vec, pf_data.mag_vec, pf_init.y_mat)
+    
+    q_diff = pf_data.q_vec - q_current
+    
+    pq_start = len(pf_init.s_array)
+    
+    step = pf_init.bpp_mat.solve(q_diff[pq_start:]/pf_data.mag_vec[pq_start:])
+    
+    mag_new: MagVec
+    mag_new = np.concatenate([pf_data.mag_vec[:pq_start],
+                              pf_data.mag_vec[pq_start:] + step])
+    
+    q_new: QVec
+    q_new = np.concatenate([q_current[:pq_start], pf_data.q_vec[pq_start:]])
+    
+    return mag_new, q_new
+
+def fdpf(pf_data: PFData, pf_init: PFInit, pf_idx: PFIndex):
     pass
