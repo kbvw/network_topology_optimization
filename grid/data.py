@@ -9,17 +9,19 @@ from ..core.itertools import unique
 from ..topology.coords import Topology
 
 # To do:
-# PV or PQ bus classification in case of both load and generator
+# - Update nodes in voltage levels
 
 N = Hashable
 C = Hashable
 L = Hashable
 G = Hashable
-B = Hashable
+
+#E = C | L | G
 
 CNList = dict[C, frozenset[N]]
 LNList = dict[L, N]
 GNList = dict[G, N]
+#NEList = dict[N, frozenset[E]]
 
 Admittances = dict[C, complex]
 SlackFactors = dict[G, float]
@@ -30,6 +32,8 @@ class Grid(NamedTuple):
     cn_list: CNList
     ln_list: LNList
     gn_list: GNList
+    
+    #ne_list: NEList
 
 class GridParams(NamedTuple):
     y_list: Admittances
@@ -37,9 +41,9 @@ class GridParams(NamedTuple):
     v_list: VoltageLevels
     p_base: PowerBase
 
-BIndex = tuple[B, ...]
-SIndex = dict[B, float]
-YIndex = dict[frozenset[B], float]
+BIndex = tuple[N, ...]
+SIndex = dict[N, float]
+YIndex = dict[frozenset[N], float]
 
 class PFIndex(NamedTuple):
     pv_idx: BIndex
@@ -60,10 +64,10 @@ def pf_index(grid: Grid, grid_params: GridParams) -> PFIndex:
 def slack_factors(grid: Grid, grid_params: GridParams) -> SIndex:
     """Mapping from buses to sums of slack participation factors."""
     
-    bs: dict[B, float]
+    bs: dict[N, float]
     bs = {b: 0. for b in unique(grid.gn_list.values())}
     
-    r = lambda bs, b: bs | {bs[b[0]] + grid_params.s_list[b[1]]}
+    r = lambda bs, b: bs | {b[0]: bs[b[1]] + grid_params.s_list[b[0]]}
     return reduce(r, grid.gn_list.items(), bs)
 
 def admittances(grid: Grid, grid_params: GridParams) -> YIndex:
@@ -72,10 +76,10 @@ def admittances(grid: Grid, grid_params: GridParams) -> YIndex:
     pu_y_list = {c: y*grid_params.p_base/(grid_params.v_list[c]**2)
                  for c, y in grid_params.y_list.items()}
     
-    bps: dict[frozenset[B], float]
+    bps: dict[frozenset[N], float]
     bps = {bp: 0. for bp in unique(grid.cn_list.values())}
     
-    r = lambda bps, bp: bps | {bps[bp[0]] + pu_y_list[bp[1]]}
+    r = lambda bps, bp: bps | {bp[0]: bps[bp[1]] + pu_y_list[bp[0]]}
     return reduce(r, grid.cn_list.items(), bps)
 
 def pv_buses(grid: Grid, grid_params: GridParams) -> BIndex:

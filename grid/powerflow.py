@@ -7,15 +7,16 @@ from collections.abc import Hashable, Mapping
 from typing import NamedTuple, Optional
 from numpy.typing import NDArray
 
-from itertools import product
+from itertools import product, chain
+from functools import reduce
 
 from ..topology.coords import Topology
 from .data import Grid, GridParams, PFIndex
 
 # To do:
-# - Per-unit scaling
-# - Computation of Q only for PQ buses
-# - Flat start initialization
+# - Generator limits
+# - Voltage determination for multiple generators on a bus
+# - Initialization using previous results
 
 N = Hashable
 C = Hashable
@@ -72,12 +73,90 @@ def initialize(grid: Grid,
                grid_data: GridData) -> tuple[PFIndex, PFData]:
     pass
 
-def pf_data(grid_data: GridData,
+def p_vec(grid: Grid,
+          grid_data: GridData,
+          grid_params: GridParams,
+          grid_idx: PFIndex,
+          start_profile: Optional[PFData] = None) -> PVec:
+    
+    lgn_list = grid.gn_list | grid.ln_list
+    
+    ps: dict[N, float]
+    ps = {p: 0. for p in chain(grid_idx.pv_idx, grid_idx.pq_idx)}
+    
+    r = lambda ps, p: ps | {lgn_list[p[0]]: ps[lgn_list[p[0]]] + p[1]}
+    np_list = reduce(r, grid_data.p_list.items(), ps)
+    
+    p: PVec
+    p = np.array([np_list[n] for n in chain(grid_idx.pv_idx, 
+                                            grid_idx.pq_idx)])
+    
+    return p/grid_params.p_base
+
+def q_vec(grid: Grid,
+          grid_data: GridData,
+          grid_params: GridParams,
+          grid_idx: PFIndex,
+          start_profile: Optional[PFData] = None) -> PVec:
+    
+    lgn_list = grid.gn_list | grid.ln_list
+    
+    qs: dict[N, float]
+    qs = {q: 0. for q in chain(grid_idx.pv_idx, grid_idx.pq_idx)}
+    
+    r = lambda qs, q: qs | {lgn_list[q[0]]: qs[lgn_list[q[0]]] + q[1]}
+    np_list = reduce(r, grid_data.q_list.items(), qs)
+    
+    q: QVec
+    q = np.array([np_list[n] for n in chain(grid_idx.pv_idx, 
+                                            grid_idx.pq_idx)])
+    
+    return q/grid_params.p_base
+
+def ang_vec(grid: Grid,
+            grid_data: GridData,
+            grid_params: GridParams,
+            grid_idx: PFIndex,
+            start_profile: Optional[PFData] = None) -> AngVec:
+    
+    return np.zeros(len(grid_idx.pv_idx) + len(grid_idx.pq_idx))
+
+def mag_vec(grid: Grid,
+            grid_data: GridData,
+            grid_params: GridParams,
+            grid_idx: PFIndex,
+            start_profile: Optional[PFData] = None) -> PVec:
+    
+    ms: dict[N, float]
+    ms = {mag: 1. for mag in chain(grid_idx.pv_idx, grid_idx.pq_idx)}
+    
+    r = lambda ms, m: ms | {grid_data.mag_list[m[0]]: 
+                            max(ms[m[0]], m[1]/grid_params.v_list[m[0]])}
+    nm_list = reduce(r, grid_data.mag_list.items(), ms)
+    
+    m: MagVec
+    m = np.array([nm_list[n] for n in chain(grid_idx.pv_idx, 
+                                            grid_idx.pq_idx)])
+    
+    return m
+
+def pf_data(grid: Grid,
+            grid_data: GridData,
             grid_params: GridParams,
             grid_idx: PFIndex,
             start_profile: Optional[PFData] = None) -> PFData:
     
-    pass
+    #pq_start = len(grid_idx.pv_idx)
+    
+    p = p_vec(grid, grid_data, grid_params, grid_idx)
+    q = q_vec(grid, grid_data, grid_params, grid_idx)
+    
+    ang = ang_vec(grid, grid_data, grid_params, grid_idx)
+    mag = mag_vec(grid, grid_data, grid_params, grid_idx)
+    
+    slack = np.float64(0)
+    
+    return PFData(p_vec=p, q_vec=q, ang_vec=ang, mag_vec=mag, p_slack=slack)
 
 def pf_init(grid: Grid, grid_idx: PFIndex) -> PFInit:
     
