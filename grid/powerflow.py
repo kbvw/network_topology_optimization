@@ -166,39 +166,74 @@ def q(ang_vec: AngVec, mag_vec: MagVec, y_mat: YMat) -> QVec:
     
     return mag_vec*amps
 
-def ang_step(pf_data: PFData, pf_init: PFInit) -> tuple[AngVec, Slack]:
+def ang_step(p_diff: PVec,
+             ang_vec: AngVec,
+             mag_vec: MagVec,
+             pf_init: PFInit) -> tuple[AngVec, Slack]:
     
-    p_diff = (pf_data.p_vec + pf_init.s_array*pf_data.p_slack
-              - p(pf_data.ang_vec, pf_data.mag_vec, pf_init.y_mat))
-    
-    step = pf_init.bp_mat.solve(p_diff/pf_data.mag_vec)
+    step = pf_init.bp_mat.solve(p_diff/mag_vec)
     
     ang_new: AngVec
-    ang_new = pf_data.ang_vec + np.concatenate(([0], step[1:]))
+    ang_new = ang_vec + np.concatenate(([0], step[1:]))
     
     slack_new: Slack
     slack_new = step[0]
     
     return ang_new, slack_new
 
-def mag_step(pf_data: PFData, pf_init: PFInit) -> tuple[MagVec, QVec]:
-    
-    q_current = q(pf_data.ang_vec, pf_data.mag_vec, pf_init.y_mat)
-    
-    q_diff = pf_data.q_vec - q_current
+def mag_step(q_diff: PVec,
+             mag_vec: MagVec,
+             q_vec: QVec,
+             q_current: QVec,
+             pf_init: PFInit) -> tuple[MagVec, QVec]:
     
     pq_start = len(pf_init.s_array)
     
-    step = pf_init.bpp_mat.solve(q_diff[pq_start:]/pf_data.mag_vec[pq_start:])
+    step = pf_init.bpp_mat.solve(q_diff/mag_vec[pq_start:])
     
     mag_new: MagVec
-    mag_new = np.concatenate([pf_data.mag_vec[:pq_start],
-                              pf_data.mag_vec[pq_start:] + step])
+    mag_new = np.concatenate([mag_vec[:pq_start],
+                              mag_vec[pq_start:] + step])
     
     q_new: QVec
-    q_new = np.concatenate([q_current[:pq_start], pf_data.q_vec[pq_start:]])
+    q_new = np.concatenate([q_current[:pq_start], q_vec[pq_start:]])
     
     return mag_new, q_new
 
-def fdpf(pf_data: PFData, pf_init: PFInit, pf_idx: PFIndex):
-    pass
+def fdpf(pf_data: PFData,
+         pf_init: PFInit,
+         max_iter: int = 10,
+         min_error: float = 0.001) -> PFData:
+    
+    pq_start = len(pf_init.s_array)
+    
+    p_current = p(pf_data.ang_vec, pf_data.mag_vec, pf_init.y_mat)
+    q_current = q(pf_data.ang_vec, pf_data.mag_vec, pf_init.y_mat)
+    
+    p_diff = pf_data.p_vec + pf_init.s_array*pf_data.p_slack - p_current
+    q_diff = pf_data.q_vec[pq_start:] - q_current[pq_start:]
+    
+    if all(p_diff < min_error) and all(q_diff < min_error) or max_iter <= 0:
+        
+        return PFData(p_vec=p_current, q_vec=q_current, 
+                      ang_vec=pf_data.ang_vec, mag_vec=pf_data.mag_vec,
+                      p_slack=pf_data.p_slack)
+    
+    else:
+        
+        ang_new, slack_new = ang_step(p_diff=p_diff, 
+                                      ang_vec=pf_data.ang_vec, 
+                                      mag_vec=pf_data.mag_vec, 
+                                      pf_init=pf_init)
+        
+        mag_new, q_new = mag_step(q_diff=q_diff,
+                                  mag_vec=pf_data.mag_vec,
+                                  q_vec=pf_data.q_vec,
+                                  q_current=q_current,
+                                  pf_init=pf_init)
+        
+        pf_data_new = PFData(p_vec=pf_data.p_vec, q_vec=q_new,
+                             ang_vec=ang_new, mag_vec=mag_new,
+                             p_slack=slack_new)
+        
+        return fdpf(pf_data_new, pf_init, max_iter - 1, min_error)
