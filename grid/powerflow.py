@@ -30,8 +30,8 @@ YIndex = dict[frozenset[B], float]
 
 PList = Mapping[L | G, float]
 QList = Mapping[L, float]
-AngList = Mapping[B, float]
-MagList = Mapping[B, float]
+AngList = Mapping[L | G, float]
+MagList = Mapping[L | G, float]
 FlowList = Mapping[C, complex]
 
 class GridData(NamedTuple):

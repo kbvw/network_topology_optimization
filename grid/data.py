@@ -25,7 +25,7 @@ GNList = dict[G, N]
 
 Admittances = dict[C, complex]
 SlackFactors = dict[G, float]
-VoltageLevels = dict[N | C, float]
+VoltageLevels = dict[L | G | C, float]
 PowerBase = float
 
 class Grid(NamedTuple):
