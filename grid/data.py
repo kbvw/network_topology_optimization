@@ -67,7 +67,7 @@ def slack_factors(grid: Grid, grid_params: GridParams) -> SIndex:
     bs: dict[N, float]
     bs = {b: 0. for b in unique(grid.gn_list.values())}
     
-    r = lambda bs, b: bs | {b[0]: bs[b[1]] + grid_params.s_list[b[0]]}
+    r = lambda bs, b: bs | {b[1]: bs[b[1]] + grid_params.s_list[b[0]]}
     return reduce(r, grid.gn_list.items(), bs)
 
 def admittances(grid: Grid, grid_params: GridParams) -> YIndex:
@@ -79,7 +79,7 @@ def admittances(grid: Grid, grid_params: GridParams) -> YIndex:
     bps: dict[frozenset[N], float]
     bps = {bp: 0. for bp in unique(grid.cn_list.values())}
     
-    r = lambda bps, bp: bps | {bp[0]: bps[bp[1]] + pu_y_list[bp[0]]}
+    r = lambda bps, bp: bps | {bp[1]: bps[bp[1]] + pu_y_list[bp[0]]}
     return reduce(r, grid.cn_list.items(), bps)
 
 def pv_buses(grid: Grid, grid_params: GridParams) -> BIndex:
