@@ -1,6 +1,6 @@
 import numpy as np
 
-from scipy.sparse import coo_array, csr_array, hstack # type: ignore
+from scipy.sparse import coo_array, csr_array, csc_array, hstack # type: ignore
 from scipy.sparse.linalg import splu, SuperLU # type: ignore
 
 from collections.abc import Hashable, Mapping
@@ -178,13 +178,13 @@ def a_mat(b_idx: BIndex, y_idx: YIndex) -> YMat:
     
     rows, cols, data = zip(*cs)
     
-    return csr_array((data, (rows, cols)), shape=2*[len(b_idx)])
+    return csc_array((data, (rows, cols)), shape=2*[len(b_idx)])
 
 def laplacian(b_idx: BIndex, y_idx: YIndex) -> YMat:
     
     a = a_mat(b_idx, y_idx)
     idx = np.arange(a.shape[0])
-    diag = csr_array((a.sum(axis=1), (idx, idx)), shape=a.shape)
+    diag = csc_array((a.sum(axis=1), (idx, idx)), shape=a.shape)
     
     return diag - a
 
@@ -196,7 +196,7 @@ def slack_array(pv_idx: BIndex, s_idx: SIndex) -> NDArray[np.float64]:
     rows, data = zip(*slack)
     cols = np.zeros(len(slack))
     
-    return csr_array((data, (rows, cols)), shape=[len(slack), 1])
+    return csc_array((data, (rows, cols)), shape=[len(slack), 1])
 
 def bp_mat(pv_idx: BIndex,
            pq_idx: BIndex,
@@ -205,7 +205,7 @@ def bp_mat(pv_idx: BIndex,
     
     lap = laplacian(pv_idx + pq_idx, y_idx)
     
-    return csr_array(hstack([s_array, np.imag(lap[:, 1:])]))
+    return csc_array(hstack([s_array, np.imag(lap[:, 1:])]))
 
 def bpp_mat(pv_idx: BIndex,
             pq_idx: BIndex,
