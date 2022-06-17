@@ -247,6 +247,7 @@ def q(ang_vec: AngVec, mag_vec: MagVec, y_mat: YMat) -> QVec:
 
 def ang_step(p_diff: PVec,
              ang_vec: AngVec,
+             p_slack: Slack,
              mag_vec: MagVec,
              pf_init: PFInit) -> tuple[AngVec, Slack]:
     
@@ -256,7 +257,7 @@ def ang_step(p_diff: PVec,
     ang_new = ang_vec + np.concatenate(([0], step[1:]))
     
     slack_new: Slack
-    slack_new = step[0]
+    slack_new = p_slack + step[0]
     
     return ang_new, slack_new
 
@@ -294,15 +295,16 @@ def fdpf(pf_data: PFData,
     
     if all(p_diff < min_error) and all(q_diff < min_error) or max_iter <= 0:
         
-        return PFData(p_vec=p_current, q_vec=q_current, 
+        return PFData(p_vec=pf_data.p_vec, q_vec=pf_data.q_vec, 
                       ang_vec=pf_data.ang_vec, mag_vec=pf_data.mag_vec,
                       p_slack=pf_data.p_slack)
     
     else:
         
-        ang_new, slack_new = ang_step(p_diff=p_diff, 
-                                      ang_vec=pf_data.ang_vec, 
-                                      mag_vec=pf_data.mag_vec, 
+        ang_new, slack_new = ang_step(p_diff=p_diff,
+                                      ang_vec=pf_data.ang_vec,
+                                      p_slack=pf_data.p_slack,
+                                      mag_vec=pf_data.mag_vec,
                                       pf_init=pf_init)
         
         mag_new, q_new = mag_step(q_diff=q_diff,
