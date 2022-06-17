@@ -168,7 +168,10 @@ def pf_init(grid: Grid, grid_idx: PFIndex) -> PFInit:
     
     bpp = bpp_mat(grid_idx.pv_idx, grid_idx.pq_idx, grid_idx.y_idx)
     
-    return PFInit(y_mat=y, bp_mat=splu(bp), bpp_mat=splu(bpp), s_array=s)
+    return PFInit(y_mat=y, 
+                  bp_mat=splu(bp), 
+                  bpp_mat=splu(bpp), 
+                  s_array=s)
 
 def a_mat(b_idx: BIndex, y_idx: YIndex) -> YMat:
     
@@ -190,13 +193,9 @@ def laplacian(b_idx: BIndex, y_idx: YIndex) -> YMat:
 
 def slack_array(pv_idx: BIndex, s_idx: SIndex) -> NDArray[np.float64]:
     
-    slack = [(b[0], -s_idx[b[1]]) for b in enumerate(pv_idx)
-             if b[1] in s_idx]
+    slack = [-s_idx[b] for b in pv_idx if b in s_idx]
     
-    rows, data = zip(*slack)
-    cols = np.zeros(len(slack))
-    
-    return csc_array((data, (rows, cols)), shape=[len(slack), 1])
+    return np.array(slack)
 
 def bp_mat(pv_idx: BIndex,
            pq_idx: BIndex,
@@ -204,8 +203,9 @@ def bp_mat(pv_idx: BIndex,
            s_array: SArray) -> YMat:
     
     lap = laplacian(pv_idx + pq_idx, y_idx)
+    slack = csc_array(np.reshape(s_array, (len(s_array), 1)))
     
-    return csc_array(hstack([s_array, np.imag(lap[:, 1:])]))
+    return csc_array(hstack([slack, np.imag(lap[:, 1:])]))
 
 def bpp_mat(pv_idx: BIndex,
             pq_idx: BIndex,
@@ -284,7 +284,7 @@ def fdpf(pf_data: PFData,
          max_iter: int = 10,
          min_error: float = 0.001) -> PFData:
     
-    pq_start = len(pf_init.s_array)
+    pq_start = pf_init.s_array.shape[0]
     
     p_current = p(pf_data.ang_vec, pf_data.mag_vec, pf_init.y_mat)
     q_current = q(pf_data.ang_vec, pf_data.mag_vec, pf_init.y_mat)
