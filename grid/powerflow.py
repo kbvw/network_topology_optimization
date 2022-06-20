@@ -194,7 +194,7 @@ def laplacian(b_idx: BIndex, y_idx: YIndex) -> YMat:
 
 def slack_array(pv_idx: BIndex, s_idx: SIndex) -> NDArray[np.float64]:
     
-    slack = [-s_idx[b] for b in pv_idx if b in s_idx]
+    slack = [s_idx[b] for b in pv_idx if b in s_idx]
     
     return np.array(slack)
 
