@@ -17,6 +17,7 @@ from .data import Grid, GridParams, PFIndex
 # - Generator limits
 # - Voltage determination for multiple generators on a bus
 # - Initialization using previous results
+# - Return number of iterations and handling of non-convergence
 
 N = Hashable
 C = Hashable
@@ -254,10 +255,10 @@ def ang_step(p_diff: PVec,
     step = pf_init.bp_mat.solve(p_diff/mag_vec)
     
     ang_new: AngVec
-    ang_new = ang_vec + np.concatenate(([0], step[1:]))
+    ang_new = ang_vec - np.concatenate(([0], step[1:]))
     
     slack_new: Slack
-    slack_new = p_slack + step[0]
+    slack_new = p_slack - step[0]
     
     return ang_new, slack_new
 
@@ -273,7 +274,7 @@ def mag_step(q_diff: PVec,
     
     mag_new: MagVec
     mag_new = np.concatenate([mag_vec[:pq_start],
-                              mag_vec[pq_start:] + step])
+                              mag_vec[pq_start:] - step])
     
     q_new: QVec
     q_new = np.concatenate([q_current[:pq_start], q_vec[pq_start:]])
@@ -293,11 +294,17 @@ def fdpf(pf_data: PFData,
     p_diff = pf_data.p_vec + pf_init.s_array*pf_data.p_slack - p_current
     q_diff = pf_data.q_vec[pq_start:] - q_current[pq_start:]
     
-    if all(p_diff < min_error) and all(q_diff < min_error) or max_iter <= 0:
+    print(p_diff)
+    
+    if all(np.abs(p_diff) < min_error) and all(np.abs(q_diff) < min_error):
         
-        return PFData(p_vec=pf_data.p_vec, q_vec=pf_data.q_vec, 
-                      ang_vec=pf_data.ang_vec, mag_vec=pf_data.mag_vec,
-                      p_slack=pf_data.p_slack)
+        return pf_data
+    
+    elif max_iter <= 0:
+        
+        print('Warning: power flow did not converge')
+        
+        return pf_data
     
     else:
         
