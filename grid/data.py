@@ -73,7 +73,7 @@ def slack_factors(grid: Grid, grid_params: GridParams) -> SIndex:
 def admittances(grid: Grid, grid_params: GridParams) -> YIndex:
     """Mapping from connections to sums of parallel admittances."""
     
-    pu_y_list = {c: y*grid_params.p_base/(grid_params.v_list[c]**2)
+    pu_y_list = {c: y/grid_params.p_base*(grid_params.v_list[c]**2)
                  for c, y in grid_params.y_list.items()}
     
     bps: dict[frozenset[N], float]
