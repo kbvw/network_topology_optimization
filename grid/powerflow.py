@@ -98,7 +98,7 @@ class PFState(NamedTuple):
     q_array: QVec
     ang_array: AngVec
     mag_array: MagVec
-    s_array: SlackArray
+    ps_array: SlackArray
 
 def initialize(grid: Grid,
                topo: Topology,
@@ -130,7 +130,7 @@ def pf_shape(pf_input: PFInput, pf_idx: PFIndex) -> tuple[int, int]:
     n_buses = len(pf_idx.pv_idx) + len(pf_idx.pq_idx)
     n_samples = min(len(q) for qs in pf_input for q in qs.values())
     
-    return (n_buses, n_samples)
+    return (n_samples, n_buses)
 
 def p_array(pf_input: PFInput,
             pf_idx: PFIndex,
@@ -140,7 +140,7 @@ def p_array(pf_input: PFInput,
     
     lgn_list = grid.gn_list | grid.ln_list
     
-    n_buses, n_samples = pf_shape(pf_input, pf_idx)
+    n_samples, n_buses = pf_shape(pf_input, pf_idx)
     
     ps: dict[N, NDArray[np.float64]]
     ps = {p: np.zeros(n_samples) for p in chain(pf_idx.pv_idx, pf_idx.pq_idx)}
@@ -150,7 +150,7 @@ def p_array(pf_input: PFInput,
     
     p: PVec
     p = np.stack([np_list[n] for n in chain(pf_idx.pv_idx, pf_idx.pq_idx)],
-                 axis=0)
+                 axis=-1)
     
     return p/grid_params.p_base
 
@@ -182,7 +182,7 @@ def q_array(pf_input: PFInput,
     
     lgn_list = grid.gn_list | grid.ln_list
     
-    n_buses, n_samples = pf_shape(pf_input, pf_idx)
+    n_samples, n_buses = pf_shape(pf_input, pf_idx)
     
     qs: dict[N, NDArray[np.float64]]
     qs = {q: np.zeros(n_samples) for q in pf_idx.pq_idx}
@@ -198,7 +198,7 @@ def q_array(pf_input: PFInput,
     
     q: QVec
     q = np.stack([np_list[n] for n in chain(pf_idx.pv_idx, pf_idx.pq_idx)],
-                 axis=0)
+                 axis=-1)
     
     return q/grid_params.p_base
 
@@ -216,13 +216,13 @@ def ang_array(pf_input: PFInput,
               grid_params: GridParams,
               start_profile: Optional[PFState] = None) -> AngVec:
     
-    n_buses, n_samples = pf_shape(pf_input, pf_idx)
+    n_samples, n_buses = pf_shape(pf_input, pf_idx)
     
     if start_profile:
-        return np.repeat(np.mean(start_profile.ang_array, axis=1), 
-                         repeats=n_samples, axis=1)
+        return np.repeat(np.mean(start_profile.ang_array, axis=0), 
+                         repeats=n_samples, axis=0)
     else: 
-        return np.zeros([n_buses, n_samples])
+        return np.zeros([n_samples, n_buses])
 
 def mag_vec(grid: Grid,
             grid_data: GridData,
@@ -249,7 +249,7 @@ def mag_array(pf_input: PFInput,
               grid_params: GridParams,
               start_profile: Optional[PFState] = None) -> MagVec:
     
-    n_buses, n_samples = pf_shape(pf_input, pf_idx)
+    n_samples, n_buses = pf_shape(pf_input, pf_idx)
     pq_start = len(pf_idx.pv_idx)
     
     ms: dict[N, NDArray[np.float64]]
@@ -267,7 +267,7 @@ def mag_array(pf_input: PFInput,
     
     m: MagVec
     m = np.stack([nm_list[n] for n in chain(pf_idx.pv_idx, pf_idx.pq_idx)],
-                 axis=0)
+                 axis=-1)
     
     return m
 
@@ -387,7 +387,7 @@ def p_batch(ang_vec: AngVec, mag_vec: MagVec, y_mat: YMat) -> PVec:
     m_col = np.arange(len(cs.row))
     mask = csr_array((m_data, (m_row, m_col)))
     
-    amps = mask.dot(amp_flows)
+    amps = mask.dot(amp_flows.T)
     
     return mag_vec*amps
 
@@ -422,7 +422,7 @@ def q_batch(ang_vec: AngVec, mag_vec: MagVec, y_mat: YMat) -> QVec:
     m_col = np.arange(len(cs.row))
     mask = csr_array((m_data, (m_row, m_col)))
     
-    amps = mask.dot(amp_flows)
+    amps = mask.dot(amp_flows.T)
     
     return mag_vec*amps
 
@@ -442,6 +442,24 @@ def ang_step(p_diff: PVec,
     
     return ang_new, slack_new
 
+def batch_ang_step(p_diff: PVec,
+                   ang_array: AngVec,
+                   ps_array: Slack,
+                   mag_array: MagVec,
+                   pf_init: PFInit) -> tuple[AngVec, Slack]:
+    
+    step = pf_init.bp_mat.solve(p_diff.T/mag_array.T).T
+    
+    ang_new: AngArray
+    ang_new = ang_array - np.concatenate((np.zeros(step.shape[:-1] + 1),
+                                          step[..., 1:]),
+                                         axis=-1)
+    
+    slack_new: SlackArray
+    slack_new = ps_array - step[..., 0]
+    
+    return ang_new, slack_new
+
 def mag_step(q_diff: PVec,
              mag_vec: MagVec,
              q_vec: QVec,
@@ -458,6 +476,27 @@ def mag_step(q_diff: PVec,
     
     q_new: QVec
     q_new = np.concatenate([q_current[:pq_start], q_vec[pq_start:]])
+    
+    return mag_new, q_new
+
+def batch_mag_step(q_diff: PVec,
+                   mag_array: MagVec,
+                   q_array: QVec,
+                   q_current: QVec,
+                   pf_init: PFInit) -> tuple[MagVec, QVec]:
+    
+    pq_start = len(pf_init.s_array)
+    
+    step = pf_init.bpp_mat.solve(q_diff.T/mag_array[..., pq_start:].T).T
+    
+    mag_new: MagVec
+    mag_new = np.concatenate([mag_array[..., :pq_start],
+                              mag_array[..., pq_start:] - step])
+    
+    q_new: QVec
+    q_new = np.concatenate([q_current[..., :pq_start], 
+                            q_array[..., pq_start:]],
+                           axis=-1)
     
     return mag_new, q_new
 
@@ -507,42 +546,42 @@ def fdpf(pf_data: PFData,
 def fdpf_batch(pf_state: PFState,
                pf_init: PFInit,
                max_iter: int = 10,
-               min_error: float = 0.001) -> PFData:
+               min_error: float = 0.001) -> PFState:
     
     pq_start = pf_init.s_array.shape[0]
     
-    p_current = p(pf_state.ang_array, pf_state.mag_array, pf_init.y_mat)
-    q_current = q(pf_state.ang_array, pf_state.mag_array, pf_init.y_mat)
+    p_current = p_batch(pf_state.ang_array, pf_state.mag_array, pf_init.y_mat)
+    q_current = q_batch(pf_state.ang_array, pf_state.mag_array, pf_init.y_mat)
     
-    p_diff = pf_data.p_vec + pf_init.s_array*pf_data.p_slack - p_current
-    q_diff = pf_data.q_vec[pq_start:] - q_current[pq_start:]
+    p_diff = pf_state.p_array + pf_init.s_array*pf_state.ps_array - p_current
+    q_diff = pf_state.q_array[pq_start:] - q_current[pq_start:]
     
     if all(np.abs(p_diff) < min_error) and all(np.abs(q_diff) < min_error):
         
-        return pf_data
+        return pf_state
     
     elif max_iter <= 0:
         
         print('Warning: power flow did not converge')
         
-        return pf_data
+        return pf_state
     
     else:
         
-        ang_new, slack_new = ang_step(p_diff=p_diff,
-                                      ang_vec=pf_data.ang_vec,
-                                      p_slack=pf_data.p_slack,
-                                      mag_vec=pf_data.mag_vec,
-                                      pf_init=pf_init)
+        ang_new, slack_new = batch_ang_step(p_diff=p_diff,
+                                            ang_array=pf_state.ang_array,
+                                            ps_array=pf_state.ps_array,
+                                            mag_array=pf_state.mag_array,
+                                            pf_init=pf_init)
         
-        mag_new, q_new = mag_step(q_diff=q_diff,
-                                  mag_vec=pf_data.mag_vec,
-                                  q_vec=pf_data.q_vec,
-                                  q_current=q_current,
-                                  pf_init=pf_init)
+        mag_new, q_new = batch_mag_step(q_diff=q_diff,
+                                        mag_array=pf_state.mag_array,
+                                        q_array=pf_state.q_array,
+                                        q_current=q_current,
+                                        pf_init=pf_init)
         
-        pf_data_new = PFData(p_vec=pf_data.p_vec, q_vec=q_new,
-                             ang_vec=ang_new, mag_vec=mag_new,
-                             p_slack=slack_new)
+        pf_state_new = PFState(p_array=pf_state.p_array, q_array=q_new,
+                               ang_array=ang_new, mag_array=mag_new,
+                               ps_array=slack_new)
         
-        return fdpf(pf_data_new, pf_init, max_iter - 1, min_error)
+        return fdpf_batch(pf_state_new, pf_init, max_iter - 1, min_error)
